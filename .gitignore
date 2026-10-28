@@ -1,0 +1,16 @@
+# 构建产物
+/build/
+/cmake-build-*/
+
+# IDE / 本地配置
+/.idea/
+/.vscode/
+/.trae/
+
+# 编译中间文件
+*.o
+*.obj
+*.exe
+
+# u8g2 上游 git 历史的本地备份，不提交
+/lib/u8g2/.git_upstream_backup/

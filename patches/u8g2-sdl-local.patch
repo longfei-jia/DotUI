@@ -1,0 +1,226 @@
+diff --git a/sys/sdl/common/u8x8_d_sdl_128x64.c b/sys/sdl/common/u8x8_d_sdl_128x64.c
+index 18b854cd..ec7cdd49 100644
+--- a/sys/sdl/common/u8x8_d_sdl_128x64.c
++++ b/sys/sdl/common/u8x8_d_sdl_128x64.c
+@@ -26,7 +26,7 @@ int u8g_sdl_multiple = U8G2_U8G_SDL_MULTIPLE;
+ 
+ #else
+ 
+-int u8g_sdl_multiple = 3;
++int u8g_sdl_multiple = 2;
+ 
+ #endif
+ 
+@@ -133,11 +133,13 @@ static void u8g_sdl_init(int width, int height)
+   printf("%d bits-per-pixel mode\n", u8g_sdl_screen->format->BitsPerPixel);
+   printf("%d bytes-per-pixel mode\n", u8g_sdl_screen->format->BytesPerPixel);
+   
+-  u8g_sdl_color[0] = SDL_MapRGB( u8g_sdl_screen->format, 0, 0, 0 );
++  u8g_sdl_color[0] = SDL_MapRGB( u8g_sdl_screen->format, 210, 210, 210 );
+   u8g_sdl_color[1] = SDL_MapRGB( u8g_sdl_screen->format, W(100, 50), W(255,50), 0 );
+   u8g_sdl_color[2] = SDL_MapRGB( u8g_sdl_screen->format, W(100, 80), W(255,80), 0 );
+-  u8g_sdl_color[3] = SDL_MapRGB( u8g_sdl_screen->format, 100, 255, 0 );
+-  u8g_sdl_color[4] = SDL_MapRGB( u8g_sdl_screen->format, 30, 30, 30 );
++  // u8g_sdl_color[3] = SDL_MapRGB( u8g_sdl_screen->format, 100, 255, 0 );   //default
++  u8g_sdl_color[3] = SDL_MapRGB( u8g_sdl_screen->format, 0, 0, 0 );
++  // u8g_sdl_color[4] = SDL_MapRGB( u8g_sdl_screen->format, 30, 30, 30 );   //default
++  u8g_sdl_color[4] = SDL_MapRGB( u8g_sdl_screen->format, 210, 210, 210 );
+ 
+   /*
+   u8g_sdl_set_pixel(0,0);
+@@ -343,6 +345,195 @@ void u8g2_SetupBuffer_SDL_128x64_1(u8g2_t *u8g2, const u8g2_cb_t *u8g2_cb)
+   u8x8_Setup_SDL_128x64(u8g2_GetU8x8(u8g2));
+   u8g2_SetupBuffer(u8g2, buf, 1, u8g2_ll_hvline_vertical_top_lsb, u8g2_cb);
+ }
++/*========================================*/
++/* 128x128 */
++static const u8x8_display_info_t u8x8_sdl_128x128_info = 
++{
++  /* chip_enable_level = */ 0,
++  /* chip_disable_level = */ 1,
++  
++  /* post_chip_enable_wait_ns = */ 0,
++  /* pre_chip_disable_wait_ns = */ 0,
++  /* reset_pulse_width_ms = */ 0, 
++  /* post_reset_wait_ms = */ 0, 
++  /* sda_setup_time_ns = */ 0,		
++  /* sck_pulse_width_ns = */ 0,
++  /* sck_clock_hz = */ 4000000UL,
++  /* spi_mode = */ 1,		
++  /* i2c_bus_clock_100kHz = */ 0,
++  /* data_setup_time_ns = */ 0,
++  /* write_pulse_width_ns = */ 0,
++  /* tile_width = */ 16,
++  /* tile_hight = */ 16,
++  /* default_x_offset = */ 0,
++  /* flipmode_x_offset = */ 0,
++  /* pixel_width = */ 128,
++  /* pixel_height = */ 128
++};
++
++uint8_t u8x8_d_sdl_128x128(u8x8_t *u8g2, uint8_t msg, uint8_t arg_int, void *arg_ptr)
++{
++  uint8_t x, y, c;
++  uint8_t *ptr;
++  switch(msg)
++  {
++    case U8X8_MSG_DISPLAY_SETUP_MEMORY:
++      u8x8_d_helper_display_setup_memory(u8g2, &u8x8_sdl_128x128_info);
++      u8g_sdl_init(128, 128);
++      break;
++    case U8X8_MSG_DISPLAY_INIT:
++      u8x8_d_helper_display_init(u8g2);
++      break;
++    case U8X8_MSG_DISPLAY_SET_POWER_SAVE:
++      break;
++    case U8X8_MSG_DISPLAY_SET_FLIP_MODE:
++      break;
++    case U8X8_MSG_DISPLAY_SET_CONTRAST:
++      break;
++    case U8X8_MSG_DISPLAY_DRAW_TILE:
++      x = ((u8x8_tile_t *)arg_ptr)->x_pos;
++      x *= 8;
++      x += u8g2->x_offset;
++    
++      y = ((u8x8_tile_t *)arg_ptr)->y_pos;
++      y *= 8;
++    
++      do
++      {
++        c = ((u8x8_tile_t *)arg_ptr)->cnt;
++        ptr = ((u8x8_tile_t *)arg_ptr)->tile_ptr;
++        u8g_sdl_set_multiple_8pixel(x, y, c*8, ptr);
++        arg_int--;
++	      x+=c*8;
++      } while( arg_int > 0 );
++      
++      /* update all */
++#ifndef NO_SDL
++      SDL_UpdateWindowSurface(u8g_sdl_window);
++#endif      
++      break;
++    default:
++      return 0;
++  }
++  return 1;
++}
++
++void u8x8_Setup_SDL_128x128(u8x8_t *u8x8)
++{
++  /* setup defaults */
++  u8x8_SetupDefaults(u8x8);
++  
++  /* setup specific callbacks */
++  u8x8->display_cb = u8x8_d_sdl_128x128;
++	
++  u8x8->gpio_and_delay_cb = u8x8_d_sdl_gpio;
++
++  /* setup display info */
++  u8x8_SetupMemory(u8x8);  
++}
++
++void u8g2_SetupBuffer_SDL_128x128(u8g2_t *u8g2, const u8g2_cb_t *u8g2_cb)
++{
++  static uint8_t buf[128*128];
++  
++  u8x8_Setup_SDL_128x128(u8g2_GetU8x8(u8g2));
++  u8g2_SetupBuffer(u8g2, buf, 16, u8g2_ll_hvline_vertical_top_lsb, u8g2_cb);
++}
++
++/*========================================*/
++/* 144x168 */
++static const u8x8_display_info_t u8x8_sdl_144x168_info = 
++{
++  /* chip_enable_level = */ 0,
++  /* chip_disable_level = */ 1,
++  
++  /* post_chip_enable_wait_ns = */ 0,
++  /* pre_chip_disable_wait_ns = */ 0,
++  /* reset_pulse_width_ms = */ 0, 
++  /* post_reset_wait_ms = */ 0, 
++  /* sda_setup_time_ns = */ 0,		
++  /* sck_pulse_width_ns = */ 0,
++  /* sck_clock_hz = */ 4000000UL,
++  /* spi_mode = */ 1,		
++  /* i2c_bus_clock_100kHz = */ 0,
++  /* data_setup_time_ns = */ 0,
++  /* write_pulse_width_ns = */ 0,
++  /* tile_width = */ 18,
++  /* tile_hight = */ 21,
++  /* default_x_offset = */ 0,
++  /* flipmode_x_offset = */ 0,
++  /* pixel_width = */ 144,
++  /* pixel_height = */ 168
++};
++
++uint8_t u8x8_d_sdl_144x168(u8x8_t *u8g2, uint8_t msg, uint8_t arg_int, void *arg_ptr)
++{
++  uint8_t x, y, c;
++  uint8_t *ptr;
++  switch(msg)
++  {
++    case U8X8_MSG_DISPLAY_SETUP_MEMORY:
++      u8x8_d_helper_display_setup_memory(u8g2, &u8x8_sdl_144x168_info);
++      u8g_sdl_init(144, 168);
++      break;
++    case U8X8_MSG_DISPLAY_INIT:
++      u8x8_d_helper_display_init(u8g2);
++      break;
++    case U8X8_MSG_DISPLAY_SET_POWER_SAVE:
++      break;
++    case U8X8_MSG_DISPLAY_SET_FLIP_MODE:
++      break;
++    case U8X8_MSG_DISPLAY_SET_CONTRAST:
++      break;
++    case U8X8_MSG_DISPLAY_DRAW_TILE:
++      x = ((u8x8_tile_t *)arg_ptr)->x_pos;
++      x *= 8;
++      x += u8g2->x_offset;
++    
++      y = ((u8x8_tile_t *)arg_ptr)->y_pos;
++      y *= 8;
++    
++      do
++      {
++        c = ((u8x8_tile_t *)arg_ptr)->cnt;
++        ptr = ((u8x8_tile_t *)arg_ptr)->tile_ptr;
++        u8g_sdl_set_multiple_8pixel(x, y, c*8, ptr);
++        arg_int--;
++	      x+=c*8;
++      } while( arg_int > 0 );
++      
++      /* update all */
++#ifndef NO_SDL
++      SDL_UpdateWindowSurface(u8g_sdl_window);
++#endif      
++      break;
++    default:
++      return 0;
++  }
++  return 1;
++}
++
++void u8x8_Setup_SDL_144x168(u8x8_t *u8x8)
++{
++  /* setup defaults */
++  u8x8_SetupDefaults(u8x8);
++  
++  /* setup specific callbacks */
++  u8x8->display_cb = u8x8_d_sdl_144x168;
++	
++  u8x8->gpio_and_delay_cb = u8x8_d_sdl_gpio;
++
++  /* setup display info */
++  u8x8_SetupMemory(u8x8);  
++}
++
++void u8g2_SetupBuffer_SDL_144x168(u8g2_t *u8g2, const u8g2_cb_t *u8g2_cb)
++{
++  static uint8_t buf[144*168];
++  
++  u8x8_Setup_SDL_144x168(u8g2_GetU8x8(u8g2));
++  u8g2_SetupBuffer(u8g2, buf, 21, u8g2_ll_hvline_vertical_top_lsb, u8g2_cb);
++}
+ 
+ /*========================================*/
+ /* 240x160 */

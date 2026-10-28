@@ -1,0 +1,4 @@
+*.o
+*.s
+*.~
+sys/sdl/text_full_buffer/u8g2_sdl.exe
