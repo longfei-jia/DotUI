@@ -62,6 +62,15 @@ add_library(u8g2 STATIC
     ${U8G2_CORE_SRC}
     "${U8G2_DIR}/sys/sdl/common/u8x8_d_sdl_128x64.c"
     "${U8G2_DIR}/sys/sdl/common/u8x8_sdl_key.c"
+    "${U8G2_DIR}/tools/font/build/single_font_files/u8g2_font_wqy12_t_gb2312.c"
+)
+
+# 该字体文件是 u8g2_fonts.c 的拼接片段，单独编译时需要先引入 u8g2.h
+set_source_files_properties(
+    "${U8G2_DIR}/tools/font/build/single_font_files/u8g2_font_wqy12_t_gb2312.c"
+    PROPERTIES
+        COMPILE_DEFINITIONS "U8G2_USE_LARGE_FONTS"
+        COMPILE_OPTIONS "-include;${U8G2_DIR}/csrc/u8g2.h"
 )
 
 target_include_directories(u8g2 PUBLIC "${U8G2_DIR}/csrc")
@@ -78,10 +87,24 @@ find_package(SDL2 CONFIG REQUIRED)
 target_link_libraries(u8g2 PUBLIC SDL2::SDL2)
 
 # ---------------------------------------------------------------------------
+# MonoUI 框架（C++17）
+# ---------------------------------------------------------------------------
+add_library(mono_ui STATIC
+    src/mono_ui.cpp
+    src/mono_page.cpp
+    src/mono_item.cpp
+    src/mono_input.cpp
+    src/resources.cpp
+    src/mono_user_app.cpp
+)
+target_include_directories(mono_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc")
+target_link_libraries(mono_ui PUBLIC u8g2)
+
+# ---------------------------------------------------------------------------
 # 模拟器可执行文件
 # ---------------------------------------------------------------------------
 add_executable(dotui_sim src/main.cpp)
-target_link_libraries(dotui_sim PRIVATE u8g2)
+target_link_libraries(dotui_sim PRIVATE mono_ui)
 
 # ---------------------------------------------------------------------------
 # 把运行期 DLL 复制到 exe 旁边，双击即可运行

@@ -344,7 +344,8 @@ void MonoUI::drawRow(MonoItem& it, float rowF, bool selected, float slide) {
     // ITEM_TEXT 缩进 3，其余 10（给行首图标列留位）
     const int x    = (it.type == ItemType::ITEM_TEXT)
                    ? MonoLayout::kPadText : MonoLayout::kPadItem;
-    const int base = y + 11;   // 基线：6x12 字体 ascent 7 / descent -2
+    // const int base = y + 11;   // 基线：6x12 字体 ascent 7 / descent -2
+    const int base = RowBaseline(y);
 
     u8g2_SetDrawColor(g2_, theme_.fg);
 

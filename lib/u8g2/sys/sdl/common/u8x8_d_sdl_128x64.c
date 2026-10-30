@@ -26,7 +26,7 @@ int u8g_sdl_multiple = U8G2_U8G_SDL_MULTIPLE;
 
 #else
 
-int u8g_sdl_multiple = 2;
+int u8g_sdl_multiple = 3;
 
 #endif
 
@@ -101,6 +101,11 @@ static void u8g_sdl_set_multiple_8pixel(int x, int y, int cnt, uint8_t *pixel)
   }
 }
 
+static void u8g_sdl_init(int width, int height);
+
+/* 前置声明：u8g_sdl_init 中按浅色调色板初始化（定义见下方反色支持一节） */
+static void u8g_sdl_apply_palette(uint8_t dark);
+
 static void u8g_sdl_init(int width, int height)
 {
   u8g_sdl_height = height;
@@ -132,14 +137,9 @@ static void u8g_sdl_init(int width, int height)
   
   printf("%d bits-per-pixel mode\n", u8g_sdl_screen->format->BitsPerPixel);
   printf("%d bytes-per-pixel mode\n", u8g_sdl_screen->format->BytesPerPixel);
-  
-  u8g_sdl_color[0] = SDL_MapRGB( u8g_sdl_screen->format, 210, 210, 210 );
-  u8g_sdl_color[1] = SDL_MapRGB( u8g_sdl_screen->format, W(100, 50), W(255,50), 0 );
-  u8g_sdl_color[2] = SDL_MapRGB( u8g_sdl_screen->format, W(100, 80), W(255,80), 0 );
-  // u8g_sdl_color[3] = SDL_MapRGB( u8g_sdl_screen->format, 100, 255, 0 );   //default
-  u8g_sdl_color[3] = SDL_MapRGB( u8g_sdl_screen->format, 0, 0, 0 );
-  // u8g_sdl_color[4] = SDL_MapRGB( u8g_sdl_screen->format, 30, 30, 30 );   //default
-  u8g_sdl_color[4] = SDL_MapRGB( u8g_sdl_screen->format, 210, 210, 210 );
+
+  /* 默认浅色（反射屏观感：灰白底 + 黑像素） */
+  u8g_sdl_apply_palette(0);
 
   /*
   u8g_sdl_set_pixel(0,0);
@@ -151,8 +151,60 @@ static void u8g_sdl_init(int width, int height)
   SDL_UpdateWindowSurface(u8g_sdl_window);
 
   atexit(SDL_Quit);
-#endif  
+#endif
   return;
+}
+
+/*
+  反色（深色模式）支持：与真机一致，反色属于显示后端的能力，
+  应用层不直接操作 SDL，只调用 u8g_sdl_set_inverse()。
+*/
+static uint8_t u8g_sdl_inverse = 0;   /* 0 = 浅色，1 = 深色 */
+
+/* 两套调色板：索引含义同 u8g_sdl_color
+   [0]/[4] = 背景两色（同值则无棋盘格），[3] = 前景像素 */
+static const uint8_t u8g_sdl_palette_light[5][3] = {
+  { 210, 210, 210 },                       /* [0] 背景 */
+  { W(100, 50), W(255, 50), 0 },
+  { W(100, 80), W(255, 80), 0 },
+  {   0,   0,   0 },                       /* [3] 前景：黑 */
+  { 210, 210, 210 },                       /* [4] 背景 */
+};
+
+static const uint8_t u8g_sdl_palette_dark[5][3] = {
+  {   0,   0,   0 },                       /* [0] 背景：黑 */
+  { W(100, 50), W(255, 50), 0 },
+  { W(100, 80), W(255, 80), 0 },
+  { 255, 255, 255 },                       /* [3] 前景：白 */
+  {   0,   0,   0 },                       /* [4] 背景 */
+};
+
+/* 把指定调色板装入 u8g_sdl_color 并刷新整屏（须在窗口创建后调用） */
+static void u8g_sdl_apply_palette(uint8_t dark)
+{
+#ifndef NO_SDL
+  const uint8_t (*p)[3] = dark ? u8g_sdl_palette_dark : u8g_sdl_palette_light;
+  int i;
+
+  for ( i = 0; i < 5; i++ )
+    u8g_sdl_color[i] = SDL_MapRGB( u8g_sdl_screen->format, p[i][0], p[i][1], p[i][2] );
+
+  SDL_FillRect( u8g_sdl_screen, NULL, u8g_sdl_color[0] );
+  SDL_UpdateWindowSurface( u8g_sdl_window );
+#endif
+}
+
+/* 反色开关：应用层入口，dark 非 0 = 深色模式 */
+void u8g_sdl_set_inverse(uint8_t dark)
+{
+  u8g_sdl_inverse = (dark != 0);
+  u8g_sdl_apply_palette( u8g_sdl_inverse );
+}
+
+/* 查询当前反色状态 */
+uint8_t u8g_sdl_get_inverse(void)
+{
+  return u8g_sdl_inverse;
 }
 
 
@@ -434,7 +486,7 @@ void u8x8_Setup_SDL_128x128(u8x8_t *u8x8)
 
 void u8g2_SetupBuffer_SDL_128x128(u8g2_t *u8g2, const u8g2_cb_t *u8g2_cb)
 {
-  static uint8_t buf[128*128];
+  static uint8_t buf[128*16];
   
   u8x8_Setup_SDL_128x128(u8g2_GetU8x8(u8g2));
   u8g2_SetupBuffer(u8g2, buf, 16, u8g2_ll_hvline_vertical_top_lsb, u8g2_cb);
@@ -529,7 +581,7 @@ void u8x8_Setup_SDL_144x168(u8x8_t *u8x8)
 
 void u8g2_SetupBuffer_SDL_144x168(u8g2_t *u8g2, const u8g2_cb_t *u8g2_cb)
 {
-  static uint8_t buf[144*168];
+  static uint8_t buf[144*21];
   
   u8x8_Setup_SDL_144x168(u8g2_GetU8x8(u8g2));
   u8g2_SetupBuffer(u8g2, buf, 21, u8g2_ll_hvline_vertical_top_lsb, u8g2_cb);
