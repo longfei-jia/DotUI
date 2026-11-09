@@ -1,18 +1,18 @@
-// mono_user_app.cpp —— 应用层：随机测试菜单 + 中英文切换
+// dot_user_app.cpp —— 应用层：随机测试菜单 + 中英文切换
 //
-// 实现 MonoUI 的三个应用钩子：
+// 实现 DotUI 的三个应用钩子：
 //   InitLayout —— 注册页面与列表项（本例随机生成，方便压力测试）
 //   HomeScreen —— 返回主页
 //   SaveConfig —— 保存配置（此处只弹 Toast）
 //
 // 多语言方案：所有菜单文本在创建时通过 reg() 登记中英文对，
 // 切换语言时 applyLanguage() 统一改写 item 的文本指针。
-#include "mono_ui.h"
-#include "mono_page.h"
-#include "mono_item.h"
-#include "mono_widget.h"
+#include "dot_ui.h"
+#include "dot_page.h"
+#include "dot_item.h"
+#include "dot_widget.h"
 #include "resources.h"
-#include "dotui_theme.h"
+#include "dot_theme.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,7 +82,7 @@ const char* const kTestCn[kTestsPerPage] = {
 
 // ---- 文本登记表：语言切换时统一刷新 ----
 struct TextEntry {
-    MonoItem*   item;
+    DotItem*   item;
     const char* en;
     const char* cn;
 };
@@ -92,7 +92,7 @@ TextEntry g_texts[kMaxTexts];
 int       g_textCount = 0;
 
 // 登记 item 的中英文文本
-void reg(MonoItem* item, const char* en, const char* cn) {
+void reg(DotItem* item, const char* en, const char* cn) {
     if (!item || g_textCount >= kMaxTexts) return;
     g_texts[g_textCount].item = item;
     g_texts[g_textCount].en   = en;
@@ -106,7 +106,7 @@ const char* tr(const char* en, const char* cn) {
 }
 
 // 应用语言：刷新所有登记文本、系统文案与字体
-void applyLanguage(MonoUI* ui) {
+void applyLanguage(DotUI* ui) {
     const bool cn = (g_lang == LANG_CN);
 
     for (int i = 0; i < g_textCount; ++i) {
@@ -115,68 +115,68 @@ void applyLanguage(MonoUI* ui) {
     }
 
     // ON/OFF 与 OK 按钮跟随语言
-    MonoRes::kLanguage = cn ? 1 : 0;
-    MonoRes::kTextOn   = cn ? "开" : "ON";
-    MonoRes::kTextOff  = cn ? "关" : "OFF";
-    MonoRes::kTextOk   = cn ? "确定" : "OK";
+    DotRes::kLanguage = cn ? 1 : 0;
+    DotRes::kTextOn   = cn ? "开" : "ON";
+    DotRes::kTextOff  = cn ? "关" : "OFF";
+    DotRes::kTextOk   = cn ? "确定" : "OK";
 
     // 中文需要汉字字体；英文恢复 6x12 + 大字
     if (ui) {
         if (cn)
-            ui->SetFonts(MonoRes::kFontChinese, MonoRes::kFontChinese);
+            ui->SetFonts(DotRes::kFontChinese, DotRes::kFontChinese);
         else
-            ui->SetFonts(MonoRes::kFontSmall, MonoRes::kFontBig);
+            ui->SetFonts(DotRes::kFontSmall, DotRes::kFontBig);
     }
 
-    printf("[MonoUI] language = %s, texts = %d\n", cn ? "CN" : "EN", g_textCount);
+    printf("[DotUI] language = %s, texts = %d\n", cn ? "CN" : "EN", g_textCount);
     fflush(stdout);
 }
 
 // ===========================================================================
 // 回调
 // ===========================================================================
-void onMsgBox(MonoUI* ui, void*) {
-    MonoWidget::MsgBox(*ui, tr("Alert", "提示"), tr("Random menu", "随机菜单"));
+void onMsgBox(DotUI* ui, void*) {
+    DotWidget::MsgBox(*ui, tr("Alert", "提示"), tr("Random menu", "随机菜单"));
 }
 
-void onToast(MonoUI* ui, void*) {
-    MonoWidget::Toast(*ui, tr("Saved", "已保存"));
+void onToast(DotUI* ui, void*) {
+    DotWidget::Toast(*ui, tr("Saved", "已保存"));
 }
 
-void onProgress(MonoUI* ui, void*) {
+void onProgress(DotUI* ui, void*) {
     static int progress = 0;
     progress = (progress + 20) % 120;   // 循环递增，观察进度框
-    MonoWidget::ProgressBar(*ui, tr("Progress", "进度"), progress);
+    DotWidget::ProgressBar(*ui, tr("Progress", "进度"), progress);
 }
 
-void onSaveConfig(MonoUI* ui, void*) {
+void onSaveConfig(DotUI* ui, void*) {
     ui->SaveConfig(nullptr);
 }
 
-void onDarkMode(MonoUI* ui, void*) {
-    MonoItem* it = ui->CurrentItem();
-    dotui_set_dark_mode(it && it->IsOn());
+void onDarkMode(DotUI* ui, void*) {
+    DotItem* it = ui->CurrentItem();
+    dot_set_dark_mode(it && it->IsOn());
 }
 
-void onLanguage(MonoUI* ui, void*) {
-    MonoItem* it = ui->CurrentItem();
+void onLanguage(DotUI* ui, void*) {
+    DotItem* it = ui->CurrentItem();
     g_lang = (it && it->IsOn()) ? LANG_CN : LANG_EN;
     applyLanguage(ui);
 }
 
 // 测试子页条目：弹窗回显当前项名称
-void onTest(MonoUI* ui, void*) {
-    MonoItem* it = ui->CurrentItem();
-    MonoWidget::MsgBox(*ui, tr("Test", "测试"), it ? it->GetText() : "");
+void onTest(DotUI* ui, void*) {
+    DotItem* it = ui->CurrentItem();
+    DotWidget::MsgBox(*ui, tr("Test", "测试"), it ? it->GetText() : "");
 }
 
 // ===========================================================================
 // 页面构建
 // ===========================================================================
 // 随机往页面里塞一个控件，覆盖全部 6 种非跳转类型
-void addRandomItem(MonoPage* page) {
+void addRandomItem(DotPage* page) {
     const Bilingual& l = kLabels[rand() % kLabelCount];
-    MonoItem* it = nullptr;
+    DotItem* it = nullptr;
 
     switch (rand() % 6) {
     case 0:   // 纯文本
@@ -208,25 +208,25 @@ void addRandomItem(MonoPage* page) {
 }
 
 // 测试子页：Test 1..Test 16
-void addTestItems(MonoPage* page) {
+void addTestItems(DotPage* page) {
     for (int i = 0; i < kTestsPerPage; ++i) {
-        MonoItem* it = page->AddItem(ItemType::ITEM_CALL_FUNCTION,
+        DotItem* it = page->AddItem(ItemType::ITEM_CALL_FUNCTION,
                                      kTestEn[i], nullptr, 0, 0, onTest);
         reg(it, kTestEn[i], kTestCn[i]);
     }
 }
 
 // 图标页：每个图标进入各自的 Test 子页面
-void addIconItems(MonoPage* iconPage) {
-    for (int i = 0; i < MonoRes::kIconCount; ++i) {
-        MonoPage* tests = MonoPage::AddPage(MonoPage::LIST, "Tests");
+void addIconItems(DotPage* iconPage) {
+    for (int i = 0; i < DotRes::kIconCount; ++i) {
+        DotPage* tests = DotPage::AddPage(DotPage::LIST, "Tests");
         if (!tests) break;
 
         addTestItems(tests);
 
-        MonoItem* it = iconPage->AddItem(ItemType::ITEM_CALL_PAGE,
+        DotItem* it = iconPage->AddItem(ItemType::ITEM_CALL_PAGE,
                                          kIconNames[i].en,
-                                         MonoRes::kIcons[i],
+                                         DotRes::kIcons[i],
                                          tests, 0, nullptr);
         reg(it, kIconNames[i].en, kIconNames[i].cn);
     }
@@ -240,18 +240,18 @@ void addIconItems(MonoPage* iconPage) {
 
 // 注册全部页面。条目数刻意超过可视行数，用于测试分页滚动：
 //   Home 13 项 / Settings 17 项 / More 17 项 / Test 页 16 项
-void MonoUI::InitLayout() {
+void DotUI::InitLayout() {
     const unsigned seed = (unsigned)time(nullptr);
     srand(seed);
-    printf("[MonoUI] random menu seed = %u\n", seed);
+    printf("[DotUI] random menu seed = %u\n", seed);
     fflush(stdout);
 
     g_textCount = 0;   // 重新布局时重建登记表
 
-    MonoPage* home     = MonoPage::AddPage(MonoPage::LIST, "Random Menu");
-    MonoPage* settings = MonoPage::AddPage(MonoPage::LIST, "Settings");
-    MonoPage* icons    = MonoPage::AddPage(MonoPage::ICON, "Icons");
-    MonoPage* more     = MonoPage::AddPage(MonoPage::LIST, "More");
+    DotPage* home     = DotPage::AddPage(DotPage::LIST, "Random Menu");
+    DotPage* settings = DotPage::AddPage(DotPage::LIST, "Settings");
+    DotPage* icons    = DotPage::AddPage(DotPage::ICON, "Icons");
+    DotPage* more     = DotPage::AddPage(DotPage::LIST, "More");
 
     // ---- 主页：3 个入口 + 10 个随机项 ----
     reg(home->AddItem(ItemType::ITEM_CALL_PAGE, "Settings", nullptr,
@@ -292,7 +292,7 @@ void MonoUI::InitLayout() {
         "Progress", "进度条");
 
     {   // 数值项示例
-        MonoItem* it = more->AddItem(ItemType::ITEM_VALUE, "Threshold",
+        DotItem* it = more->AddItem(ItemType::ITEM_VALUE, "Threshold",
                                      nullptr, 0, 100, nullptr);
         it->SetValue(42.0f);
         reg(it, "Threshold", "阈值");
@@ -301,7 +301,7 @@ void MonoUI::InitLayout() {
     {   // 跑马灯长文本示例
         const char* en = "MonoUI ported to DotUI simulator";
         const char* cn = "MonoUI 已移植到 DotUI 模拟器";
-        MonoItem* it = more->AddItem(ItemType::ITEM_TEXT_MARQUEE, en,
+        DotItem* it = more->AddItem(ItemType::ITEM_TEXT_MARQUEE, en,
                                      nullptr, 0, 0, nullptr);
         reg(it, en, cn);
     }
@@ -314,12 +314,12 @@ void MonoUI::InitLayout() {
     applyLanguage(this);
 }
 
-void MonoUI::HomeScreen(void* arg) {
+void DotUI::HomeScreen(void* arg) {
     (void)arg;
     GotoPage(0, 0);
 }
 
-void MonoUI::SaveConfig(void* arg) {
+void DotUI::SaveConfig(void* arg) {
     (void)arg;
-    MonoWidget::Toast(*this, tr("Saved", "已保存"));
+    DotWidget::Toast(*this, tr("Saved", "已保存"));
 }

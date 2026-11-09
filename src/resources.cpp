@@ -5,7 +5,7 @@
 #include "resources.h"
 #include "u8g2.h"
 
-namespace MonoRes {
+namespace DotRes {
 
 // 14x14 1bpp，首字节为边长，stride=(n+7)/8，MSB-first
 const uint8_t kIcon0[32] = {
@@ -84,4 +84,4 @@ const char* kTextOff              = "OFF";
 const char* kTextOk               = "OK";
 const char* const kFormatValue    = "%.2f";
 
-} // namespace MonoRes
+} // namespace DotRes
