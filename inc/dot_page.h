@@ -6,6 +6,17 @@
 #include "dot_item.h"
 #include "uvector.h"
 
+// 档位选择项描述（AddSelector 用）：
+// 右侧显示 names[当前档位]，左右键 ±1 档；wrap 为 true 时首尾循环。
+// 需要双语档位名时，应用层在语言切换回调里给 item->valueNames 换表即可。
+struct DotSelectorDesc {
+    const char* const* names;        // 档位显示名表（长度须 ≥ count）
+    int         count;               // 档位总数
+    int         initial = 0;         // 初始档位
+    bool        wrap    = true;      // 首尾循环（档位控件通常循环）
+    DotCallback callback = nullptr;  // 切档回调（由 adjustItem 触发）
+};
+
 class DotPage {
 public:
     enum Mode : uint8_t {
@@ -33,6 +44,11 @@ public:
     DotItem* AddItemRaw(ItemType type, const char* description,
                          const uint8_t* iconSrc, uintptr_t param1,
                          uintptr_t param2, DotCallback callback);
+
+    // ---- 档位选择项：VALUE 控件快捷封装（右侧自定义内容 + 可循环）----
+    // 一次完成：量程 0~count-1、固定步长 1、档位名表、初始档、
+    // 循环开关、常驻编辑态（左右键直接切档）与切档回调
+    DotItem* AddSelector(const char* description, const DotSelectorDesc& sel);
 
     Mode        GetMode() const { return mode_; }
     const char* Name()    const { return name_ ? name_ : ""; }

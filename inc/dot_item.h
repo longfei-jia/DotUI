@@ -70,8 +70,9 @@ class DotItem{
     const char* valueFmt  = nullptr;            // 显示格式覆盖（null = kFormatValue）；
                                                 // 指向静态字符串，如 "%.0f°"
     const char* const* valueNames = nullptr;    // 档位名表（优先于 valueFmt）：
-                                                // valueNames[(int)value] 直接作为显示文本，
-                                                // 如 {"0","90","180","270"}；显示完需以空串结尾
+                                                // drawRow 按 (int)value 直接索引，
+                                                // 表长须覆盖整个量程；
+                                                // AddSelector 会自动配置好
 
     DotPage* TargetPage() const;                            // 跳转目标页
     void*     Context() const { return dotFromUptr<void*>(param2); }

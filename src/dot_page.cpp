@@ -94,3 +94,25 @@ int DotPage::IndexOf(const DotItem* it) const {
         if (items_[i] == it) return (int)i;
     return -1;
 }
+
+// 注册档位选择项：VALUE 控件的快捷封装，适合语言/屏幕方向/阻尼模式
+// 这类"右侧显示自定义档位内容"的设置项。
+//   量程 = 0 ~ count-1，固定步长 1；
+//   右侧显示 sel.names[档位]（drawRow 优先读 valueNames）；
+//   sel.wrap 为 true 时首尾循环（如 270° → 0°、过阻尼 → 欠阻尼）；
+//   常驻编辑态，左右键直接切档；切档后触发 sel.callback。
+// 双语档位名：应用层用 reg() 登记中英名表，语言切换时刷新 valueNames。
+DotItem* DotPage::AddSelector(const char* description,
+                              const DotSelectorDesc& sel) {
+    DotItem* it = AddItemRaw(ItemType::ITEM_VALUE, description, nullptr,
+                             0, (uintptr_t)(sel.count - 1), sel.callback);
+    if (!it) return nullptr;
+
+    it->step       = 1.0f;        // 整档切换
+    it->wrap       = sel.wrap;    // 首尾循环开关
+    it->valueNames = sel.names;   // 右侧档位显示内容（应用层可换表）
+    it->SetValue((float)(sel.initial >= 0 && sel.initial < sel.count
+                             ? sel.initial : 0));
+    it->SetEditing(true);         // 常驻编辑态：左右键直接切档
+    return it;
+}

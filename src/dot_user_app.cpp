@@ -315,39 +315,28 @@ void DotUI::InitLayout() {
     reg(settings->AddItem(ItemType::ITEM_SWITCH, "Dark Mode", nullptr,
                           false, 0, onDarkMode),
         "Dark Mode", "深色模式");
+    // ---- 档位选择项：语言 / 屏幕方向 / 阻尼调节 ----
+    // AddSelector 一次完成：档位名表、档数、初始档、循环、切档回调。
+    // 双语档位名通过 reg() 登记，applyLanguage 切换语言时刷新。
     {
-        // 语言档位：0=中文(ZH) 1=英文(EN)，右侧显示中/英 或 ZH/EN
-        DotItem* it = settings->AddItem(ItemType::ITEM_VALUE, "Language",
-                                         nullptr, 0, 1, onLanguage);
-        it->step = 1.0f;
-        it->valueNames = kLangNamesCn;  // 初始中文界面，随语言切换刷新
-        it->SetValue(0);                // 默认中文
-        it->SetEditing(true);           // 常驻编辑态：左右键直接切档
+        const DotSelectorDesc kLangSel = {
+            kLangNamesCn, 2, 0, true, onLanguage };
+        DotItem* it = settings->AddSelector("Language", kLangSel);
         reg(it, "Language", "语言", kLangNamesEn, kLangNamesCn);
     }
     reg(settings->AddItem(ItemType::ITEM_CALL_FUNCTION, "Save Config", nullptr,
                           0, 0, onSaveConfig),
         "Save Config", "保存配置");
-
-    // ---- 屏幕方向 + 阻尼调节：VALUE 档位，右侧显示档位，左右键切档，即刻生效 ----
     {
-        DotItem* it = settings->AddItem(ItemType::ITEM_VALUE, "Rotation",
-                                         nullptr, 0, 3, onRotationAdjust);
-        it->step = 1.0f;             // 每次左右键 ±1 档（顺时针 90°）
-        it->valueNames = kRotNames;  // 右侧显示 0/90/180/270（角度值）
-        it->wrap = true;             // 270° 后继续正向回到 0°，循环切换
-        it->SetValue(0);             // 默认 0°
-        it->SetEditing(true);        // 常驻编辑态：左右键直接切档
+        const DotSelectorDesc kRotSel = {
+            kRotNames, 4, 0, true, onRotationAdjust };
+        DotItem* it = settings->AddSelector("Rotation", kRotSel);
         reg(it, "Rotation", "屏幕方向");
     }
     {
-        DotItem* it = settings->AddItem(ItemType::ITEM_VALUE, "Damping",
-                                         nullptr, 0, 2, onDampingAdjust);
-        it->step = 1.0f;
-        it->valueNames = kDampNamesCn; // 右侧显示模式名（初始中文，随语言切换）
-        it->wrap = true;               // 欠阻尼→临界→过阻尼→欠阻尼 循环
-        it->SetValue(1);               // 默认临界阻尼
-        it->SetEditing(true);
+        const DotSelectorDesc kDampSel = {
+            kDampNamesCn, 3, 1, true, onDampingAdjust };
+        DotItem* it = settings->AddSelector("Damping", kDampSel);
         reg(it, "Damping", "阻尼调节", kDampNamesEn, kDampNamesCn);
     }
 
