@@ -56,12 +56,11 @@ const Bilingual kLongLabels[] = {
      "这一行用来演示跑马灯动画"},
 };
 constexpr int kLongCount = (int)(sizeof(kLongLabels) / sizeof(kLongLabels[0]));
-
-// 图标页 8 个图标的名称
+// 图标页 8 个图标的名称（全部使用 64x64 默认方块图标，无需美术资源）
 const Bilingual kIconNames[8] = {
-    {"Chip", "芯片"},       {"Globe", "地球"},   {"Connector", "连接器"},
-    {"Arrow", "箭头"},      {"Path", "路径"},    {"Stair", "阶梯"},
-    {"Noise", "噪声"},      {"Nav", "导航"},
+    {"Settings", "设置"},     {"Controls", "控件"},   {"Tests", "测试"},
+    {"Demo 1", "演示 1"},      {"Demo 2", "演示 2"},   {"Demo 3", "演示 3"},
+    {"Demo 4", "演示 4"},      {"Demo 5", "演示 5"},
 };
 
 // 每个测试子页的条目
@@ -85,18 +84,25 @@ struct TextEntry {
     DotItem*   item;
     const char* en;
     const char* cn;
+    // 档位名表（可选，供 ITEM_VALUE 的 valueNames 双语切换）
+    const char* const* namesEn;
+    const char* const* namesCn;
 };
 
 constexpr int kMaxTexts = 320;
 TextEntry g_texts[kMaxTexts];
 int       g_textCount = 0;
 
-// 登记 item 的中英文文本
-void reg(DotItem* item, const char* en, const char* cn) {
+// 登记 item 的中英文文本（档位名表默认空）
+void reg(DotItem* item, const char* en, const char* cn,
+         const char* const* namesEn = nullptr,
+         const char* const* namesCn = nullptr) {
     if (!item || g_textCount >= kMaxTexts) return;
-    g_texts[g_textCount].item = item;
-    g_texts[g_textCount].en   = en;
-    g_texts[g_textCount].cn   = cn;
+    g_texts[g_textCount].item    = item;
+    g_texts[g_textCount].en      = en;
+    g_texts[g_textCount].cn      = cn;
+    g_texts[g_textCount].namesEn = namesEn;
+    g_texts[g_textCount].namesCn = namesCn;
     ++g_textCount;
 }
 
@@ -110,8 +116,13 @@ void applyLanguage(DotUI* ui) {
     const bool cn = (g_lang == LANG_CN);
 
     for (int i = 0; i < g_textCount; ++i) {
-        if (g_texts[i].item)
+        if (g_texts[i].item) {
             g_texts[i].item->SetText(cn ? g_texts[i].cn : g_texts[i].en);
+            // 档位名表跟随语言（未登记名表的项保持不变）
+            if (g_texts[i].namesEn)
+                g_texts[i].item->valueNames =
+                    cn ? g_texts[i].namesCn : g_texts[i].namesEn;
+        }
     }
 
     // ON/OFF 与 OK 按钮跟随语言
@@ -158,9 +169,11 @@ void onDarkMode(DotUI* ui, void*) {
     dot_set_dark_mode(it && it->IsOn());
 }
 
+// ---- 语言：VALUE 档位（0=中文 1=英文），左右键切档即刻生效 ----
 void onLanguage(DotUI* ui, void*) {
-    DotItem* it = ui->CurrentItem();
-    g_lang = (it && it->IsOn()) ? LANG_CN : LANG_EN;
+    DotItem* it = ui ? ui->CurrentItem() : nullptr;
+    if (!it) return;
+    g_lang = ((int)(it->value + 0.5f) == 0) ? LANG_CN : LANG_EN;
     applyLanguage(ui);
 }
 
@@ -168,6 +181,31 @@ void onLanguage(DotUI* ui, void*) {
 void onTest(DotUI* ui, void*) {
     DotItem* it = ui->CurrentItem();
     DotWidget::MsgBox(*ui, tr("Test", "测试"), it ? it->GetText() : "");
+}
+
+// 档位显示名表（drawRow 按整数值直接索引；随语言切换的表走 reg 双语机制）
+const char* const kRotNames[4]     = { "0", "90", "180", "270" };   // 旋转角度（无语言差异）
+const char* const kDampNamesEn[3]  = { "Under", "Crit", "Over" };   // 阻尼模式（英文）
+const char* const kDampNamesCn[3]  = { "欠阻尼", "临界", "过阻尼" };  // 阻尼模式（中文）
+const char* const kLangNamesEn[2]  = { "ZH", "EN" };                // 语言档位（英文界面）
+const char* const kLangNamesCn[2]  = { "中", "英" };                // 语言档位（中文界面）
+
+// ---- 屏幕方向：VALUE 档位（右侧显示 0/90/180/270），左右键切档，即刻生效 ----
+void onRotationAdjust(DotUI* ui, void*) {
+    // 回调由 adjustItem 触发，此时当前项就是触发源，无需经 arg 传递
+    DotItem* it = ui ? ui->CurrentItem() : nullptr;
+    if (!it) return;
+    static const u8g2_cb_t* const kCbs[4] = {
+        U8G2_R0, U8G2_R1, U8G2_R2, U8G2_R3 };
+    ui->RotateTo(kCbs[(int)(it->value + 0.5f)]);   // 顺时针 90° 步进
+}
+
+// ---- 阻尼调节：VALUE 档位（右侧显示模式名），左右键切档 ----
+void onDampingAdjust(DotUI* ui, void*) {
+    DotItem* it = ui ? ui->CurrentItem() : nullptr;
+    if (!it) return;
+    static const float kZetas[3] = { 0.5f, 1.0f, 1.6f }; // 欠/临界/过
+    ui->SetSpringZeta(kZetas[(int)(it->value + 0.5f)]);
 }
 
 // ===========================================================================
@@ -216,19 +254,33 @@ void addTestItems(DotPage* page) {
     }
 }
 
-// 图标页：每个图标进入各自的 Test 子页面
-void addIconItems(DotPage* iconPage) {
-    for (int i = 0; i < DotRes::kIconCount; ++i) {
-        DotPage* tests = DotPage::AddPage(DotPage::LIST, "Tests");
-        if (!tests) break;
+// 图标页：全部使用 64x64 默认方块（iconSrc = nullptr，渲染时兑底）。
+// 前 3 个挂真实子页；后 5 个无子页，按下弹窗回显名称。
+// 若某个图标想用美术资源，把第 3 参 nullptr 换成 DotRes::kIcons[i] 即可。
+void addIconItems(DotPage* iconPage,
+                  DotPage* settings, DotPage* ctrl, DotPage* tests) {
+    struct Entry {
+        const char* en;       // 英文名（中文名从 kIconNames 查）
+        DotPage*    target;   // 非 null = 跳转子页；null = 弹窗展示项
+    };
+    const Entry entries[8] = {
+        {kIconNames[0].en, settings}, {kIconNames[1].en, ctrl},
+        {kIconNames[2].en, tests},
+        {kIconNames[3].en, nullptr}, {kIconNames[4].en, nullptr},
+        {kIconNames[5].en, nullptr}, {kIconNames[6].en, nullptr},
+        {kIconNames[7].en, nullptr},
+    };
 
-        addTestItems(tests);
-
-        DotItem* it = iconPage->AddItem(ItemType::ITEM_CALL_PAGE,
-                                         kIconNames[i].en,
-                                         DotRes::kIcons[i],
-                                         tests, 0, nullptr);
-        reg(it, kIconNames[i].en, kIconNames[i].cn);
+    for (int i = 0; i < 8; ++i) {
+        DotItem* it = iconPage->AddItem(
+            entries[i].target ? ItemType::ITEM_CALL_PAGE
+                              : ItemType::ITEM_CALL_FUNCTION,
+            entries[i].en,
+            nullptr,              // iconSrc = nullptr → 64x64 默认方块
+            entries[i].target ? reinterpret_cast<uintptr_t>(entries[i].target) : 0,
+            0,
+            entries[i].target ? nullptr : onTest);
+        reg(it, entries[i].en, kIconNames[i].cn);
     }
 }
 
@@ -238,8 +290,10 @@ void addIconItems(DotPage* iconPage) {
 // 应用钩子
 // ===========================================================================
 
-// 注册全部页面。条目数刻意超过可视行数，用于测试分页滚动：
-//   Home 13 项 / Settings 17 项 / More 17 项 / Test 页 16 项
+// 注册全部页面。主页为图标模式（默认显示），下设三个功能子页：
+//   设置（深色/语言/保存）→ UI 基础功能；
+//   控件（全部 8 种 ItemType 一网打尽）；
+//   测试（16 个测试项，测分页滚动）。
 void DotUI::InitLayout() {
     const unsigned seed = (unsigned)time(nullptr);
     srand(seed);
@@ -248,68 +302,90 @@ void DotUI::InitLayout() {
 
     g_textCount = 0;   // 重新布局时重建登记表
 
-    DotPage* home     = DotPage::AddPage(DotPage::LIST, "Random Menu");
+    // ---- 页面池：主页(ICON) + 设置 + 控件 + 测试 + 5 个 Test 子页 ----
+    DotPage* home     = DotPage::AddPage(DotPage::ICON, "Home");
     DotPage* settings = DotPage::AddPage(DotPage::LIST, "Settings");
-    DotPage* icons    = DotPage::AddPage(DotPage::ICON, "Icons");
-    DotPage* more     = DotPage::AddPage(DotPage::LIST, "More");
+    DotPage* ctrl     = DotPage::AddPage(DotPage::LIST, "Controls");
+    DotPage* tests    = DotPage::AddPage(DotPage::LIST, "Tests");
 
-    // ---- 主页：3 个入口 + 10 个随机项 ----
-    reg(home->AddItem(ItemType::ITEM_CALL_PAGE, "Settings", nullptr,
-                      settings, 0, nullptr),
-        "Settings", "设置");
-    reg(home->AddItem(ItemType::ITEM_CALL_PAGE, "Icons", nullptr,
-                      icons, 0, nullptr),
-        "Icons", "图标");
-    reg(home->AddItem(ItemType::ITEM_CALL_PAGE, "More", nullptr,
-                      more, 0, nullptr),
-        "More", "更多");
+    // ---- 图标主页：默认显示模式，8 个 64x64 默认方块 ----
+    addIconItems(home, settings, ctrl, tests);
 
-    for (int i = 0; i < 10; ++i) addRandomItem(home);
-
-    // ---- 设置页：深色模式 + 语言（固定前两项）+ 14 个随机项 + 保存 ----
+    // ---- 设置页：UI 基础功能 ----
     reg(settings->AddItem(ItemType::ITEM_SWITCH, "Dark Mode", nullptr,
                           false, 0, onDarkMode),
         "Dark Mode", "深色模式");
-    reg(settings->AddItem(ItemType::ITEM_SWITCH, "Language", nullptr,
-                          true, 0, onLanguage),
-        "Language", "语言");
-
-    for (int i = 0; i < 14; ++i) addRandomItem(settings);
-
+    {
+        // 语言档位：0=中文(ZH) 1=英文(EN)，右侧显示中/英 或 ZH/EN
+        DotItem* it = settings->AddItem(ItemType::ITEM_VALUE, "Language",
+                                         nullptr, 0, 1, onLanguage);
+        it->step = 1.0f;
+        it->valueNames = kLangNamesCn;  // 初始中文界面，随语言切换刷新
+        it->SetValue(0);                // 默认中文
+        it->SetEditing(true);           // 常驻编辑态：左右键直接切档
+        reg(it, "Language", "语言", kLangNamesEn, kLangNamesCn);
+    }
     reg(settings->AddItem(ItemType::ITEM_CALL_FUNCTION, "Save Config", nullptr,
                           0, 0, onSaveConfig),
         "Save Config", "保存配置");
 
-    // ---- 更多页：固定测试项 + 12 个随机项 ----
-    reg(more->AddItem(ItemType::ITEM_CALL_FUNCTION, "Show Alert", nullptr,
-                      0, 0, onMsgBox),
-        "Show Alert", "显示提示");
-    reg(more->AddItem(ItemType::ITEM_CALL_FUNCTION, "Toast", nullptr,
-                      0, 0, onToast),
-        "Toast", "提示气泡");
-    reg(more->AddItem(ItemType::ITEM_CALL_FUNCTION, "Progress", nullptr,
-                      0, 0, onProgress),
-        "Progress", "进度条");
+    // ---- 屏幕方向 + 阻尼调节：VALUE 档位，右侧显示档位，左右键切档，即刻生效 ----
+    {
+        DotItem* it = settings->AddItem(ItemType::ITEM_VALUE, "Rotation",
+                                         nullptr, 0, 3, onRotationAdjust);
+        it->step = 1.0f;             // 每次左右键 ±1 档（顺时针 90°）
+        it->valueNames = kRotNames;  // 右侧显示 0/90/180/270（角度值）
+        it->wrap = true;             // 270° 后继续正向回到 0°，循环切换
+        it->SetValue(0);             // 默认 0°
+        it->SetEditing(true);        // 常驻编辑态：左右键直接切档
+        reg(it, "Rotation", "屏幕方向");
+    }
+    {
+        DotItem* it = settings->AddItem(ItemType::ITEM_VALUE, "Damping",
+                                         nullptr, 0, 2, onDampingAdjust);
+        it->step = 1.0f;
+        it->valueNames = kDampNamesCn; // 右侧显示模式名（初始中文，随语言切换）
+        it->wrap = true;               // 欠阻尼→临界→过阻尼→欠阻尼 循环
+        it->SetValue(1);               // 默认临界阻尼
+        it->SetEditing(true);
+        reg(it, "Damping", "阻尼调节", kDampNamesEn, kDampNamesCn);
+    }
 
-    {   // 数值项示例
-        DotItem* it = more->AddItem(ItemType::ITEM_VALUE, "Threshold",
+    // ---- 控件页：已有全部控件类型各一 ----
+    reg(ctrl->AddItem(ItemType::ITEM_TEXT, "Plain Text", nullptr, 0, 0, nullptr),
+        "Plain Text", "纯文本");
+    reg(ctrl->AddItem(ItemType::ITEM_SWITCH, "Switch", nullptr,
+                      false, 0, nullptr),
+        "Switch", "开关");
+    reg(ctrl->AddItem(ItemType::ITEM_CHECKBOX, "Checkbox", nullptr,
+                      true, 0, nullptr),
+        "Checkbox", "勾选框");
+    {
+        DotItem* it = ctrl->AddItem(ItemType::ITEM_VALUE, "Value",
                                      nullptr, 0, 100, nullptr);
         it->SetValue(42.0f);
-        reg(it, "Threshold", "阈值");
+        reg(it, "Value", "数值");
     }
+    reg(ctrl->AddItem(ItemType::ITEM_PROGRESS_BAR, "Progress", nullptr,
+                      60, 0, nullptr),
+        "Progress", "进度条");
+    reg(ctrl->AddItem(ItemType::ITEM_CALL_FUNCTION, "MsgBox", nullptr,
+                      0, 0, onMsgBox),
+        "MsgBox", "消息框");
+    reg(ctrl->AddItem(ItemType::ITEM_CALL_FUNCTION, "Toast", nullptr,
+                      0, 0, onToast),
+        "Toast", "提示气泡");
+    reg(ctrl->AddItem(ItemType::ITEM_CALL_FUNCTION, "ProgressBar", nullptr,
+                      0, 0, onProgress),
+        "ProgressBar", "进度框");
+    reg(ctrl->AddItem(ItemType::ITEM_TEXT_MARQUEE,
+                      "A very long text to trigger marquee scrolling",
+                      nullptr, 0, 0, nullptr),
+        "A very long text to trigger marquee scrolling",
+        "一段很长的文本，用来触发跑马灯滚动");
 
-    {   // 跑马灯长文本示例
-        const char* en = "MonoUI ported to DotUI simulator";
-        const char* cn = "MonoUI 已移植到 DotUI 模拟器";
-        DotItem* it = more->AddItem(ItemType::ITEM_TEXT_MARQUEE, en,
-                                     nullptr, 0, 0, nullptr);
-        reg(it, en, cn);
-    }
-
-    for (int i = 0; i < 12; ++i) addRandomItem(more);
-
-    // ---- 图标页：8 个图标，各自进入 Test 子页 ----
-    addIconItems(icons);
+    // ---- 测试页：Test 1..16，超过 8 行可视区，逼出分页滚动 ----
+    addTestItems(tests);
 
     applyLanguage(this);
 }

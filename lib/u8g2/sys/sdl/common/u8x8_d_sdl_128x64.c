@@ -26,7 +26,7 @@ int u8g_sdl_multiple = U8G2_U8G_SDL_MULTIPLE;
 
 #else
 
-int u8g_sdl_multiple = 2;
+int u8g_sdl_multiple = 1;
 
 #endif
 

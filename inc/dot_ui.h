@@ -65,6 +65,14 @@ public:
 
     void SetFonts(const uint8_t* listFont, const uint8_t* bigFont);
 
+    // ---- 运行时显示/动画调节（设置页用）----
+    // 屏幕方向：cb 取 u8g2_cb_r0 / u8g2_cb_r2 / u8g2_cb_mirror 等；
+    // 注意 90° 旋转（r1/r3）会交换宽高，SDL 窗口尺寸不变时会裁剪，
+    // 演示用 r0/r2/mirror 最稳妥。
+    void RotateTo(const u8g2_cb_t* cb);
+    // 全局阻尼：同时设置 4 个弹簧的阻尼比（0.5 欠/1.0 临界/1.6 过）
+    void SetSpringZeta(float zeta);
+
     // ---- 文本工具（自动绑定列表字体，UTF-8 安全）----
     int  TextWidth(const char* s);
     int  FontAscent();
@@ -79,7 +87,8 @@ public:
     void FrameBox  (int x, int y, int w, int h);
     void FrameRound(int x, int y, int w, int h, int r);       // STEP 9
     void FillRoundOnce(int x, int y, int w, int h, int r);    // STEP 10
-    void DrawIcon(const uint8_t* icon, int x, int y, int scale); // STEP 11
+    // scale>0：按倍数放大绘制；dstSize>0：缩放绘制到 dstSize 盒内（互斥，dstSize 优先）
+    void DrawIcon(const uint8_t* icon, int x, int y, int scale, int dstSize = 0);
 
 private:
     // ---- 渲染 ----

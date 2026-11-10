@@ -68,6 +68,13 @@ const uint8_t* const kIcons[8] = {
     kIcon0, kIcon1, kIcon2, kIcon3, kIcon4, kIcon5, kIcon6, kIcon7
 };
 
+// 64x64 默认图标：填充正方形。
+// 固件格式：首字节 0x40 = 边长 64，其后 64 行 x 8 字节 stride = 512 字节位图，
+// 全 0（0 位着色 = 实心）。聚合初始化只显式写首字节，其余自动补 0。
+const uint8_t kIconDefault[513] = { 0x40 };
+
+// 图标页绘制时：iconSrc 为空 → 用 kIconDefault 兜底
+
 // PC 模拟器使用 u8g2 内置字体（中文 wqy12 约 202KB，真机需裁剪字库）
 const uint8_t* const kFontSmall    = u8g2_font_6x12_tf;
 const uint8_t* const kFontBig      = u8g2_font_7x13B_tr;

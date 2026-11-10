@@ -45,7 +45,7 @@ public:
     }
     int IndexOf(const DotItem* it) const;
 
-    // ---- 导航状态（MonoUI 读写）----
+    // ---- 导航状态（DotUI 读写）----
     float savedFocus = 0.0f;   // 离开页面时的焦点（返回时恢复）
     int   backPage   = -1;     // 父页索引，-1 表示回主页
 

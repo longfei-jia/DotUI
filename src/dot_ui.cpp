@@ -15,12 +15,34 @@ DotUI &DotUI::Instance() { return *s_inst_; }
 void DotUI::SetInstance(DotUI *ui) { s_inst_ = ui; }
 void DotUI::SetMillisSource(MillisFn fn) { s_millis_ = fn; }
 
-void DotUI::SetFonts(const uint8_t *listFont, const uint8_t *bigFont)
+void DotUI::SetFonts(const uint8_t* listFont, const uint8_t* bigFont)
 {
     if (listFont)
         fontList_ = listFont;
     if (bigFont)
         fontBig_ = bigFont;
+}
+
+// 运行时切换屏幕方向（u8g2 原生能力，旋转裁剪回调即可）。
+// 90° 旋转（r1/r3）会交换显示宽高，必须重算布局参数，
+// 否则导航栏/滚动条仍按旧宽度贴边、列表行数也错。
+void DotUI::RotateTo(const u8g2_cb_t *cb)
+{
+    if (!g2_ || !cb)
+        return;
+    u8g2_SetDisplayRotation(g2_, cb);
+    DotLayout::init((int)u8g2_GetDisplayWidth(g2_),
+                    (int)u8g2_GetDisplayHeight(g2_));
+}
+
+// 全局阻尼：设置页切换欠阻尼/临界/过阻尼时调用，
+// 四个弹簧（焦点/滚动/选中框x/选中框宽）同步生效
+void DotUI::SetSpringZeta(float zeta)
+{
+    focusS_.zeta = zeta;
+    scroll_.zeta = zeta;
+    selX_.zeta = zeta;
+    selW_.zeta = zeta;
 }
 
 // ============================ 1. 生命周期 ============================
@@ -231,14 +253,18 @@ void DotUI::AdjustCurrent(int dir)
         adjustItem(*it, dir);
 }
 
-// 左右键调整：数值项需处于编辑态；进度条步进 5；开关按方向置位
+// 左右键调整：数值项需处于编辑态（调值后触发回调，供应用层吸附/刷新）；
+// 进度条步进 5；开关按方向置位
 void DotUI::adjustItem(DotItem &it, int dir)
 {
     switch (it.type)
     {
     case ItemType::ITEM_VALUE:
-        if (it.IsEditing())
+        if (it.IsEditing()) {
             it.Adjust(dir);
+            if (it.callback)          // 框架不假设值语义，由应用决定如何响应
+                it.callback(this, it.Context());
+        }
         break;
     case ItemType::ITEM_PROGRESS_BAR:
         it.SetValue(it.value + (float)(dir * 5));
@@ -335,24 +361,8 @@ void DotUI::renderPage()
     }
 }
 
-
-// 图标副标题：按语言取中/英文（应用相关数据，先硬编码在框架侧）
-static const char* iconSubtitle(int index) {
-    static const char* const kSubsCn[] = {
-        "『机器人』", "『时钟』", "『示波器』", "『传输』",
-        "『镜像显示器』", "『循环』", "『DAP-Link』", "『功能设置』"
-    };
-    static const char* const kSubsEn[] = {
-        "[Chip Info]", "[Network]", "[Connector]", "[Back]",
-        "[Path]", "[Waveform]", "[Noise]", "[Navigation]"
-    };
-    constexpr int n = (int)(sizeof(kSubsCn) / sizeof(kSubsCn[0]));
-    if (index < 0 || index >= n) return nullptr;
-    return DotRes::kLanguage ? kSubsCn[index] : kSubsEn[index];
-}
-
 // 横向轮播：焦点图标固定屏幕中心，其余图标按弹簧水平滑动。
-// 不画选择框，焦点图标下方显示名称 + 副标题。
+// 不画选择框，焦点图标下方显示名称（文本来自 item，应用层维护）。
 void DotUI::renderIconPage(DotPage& p) {
     const int count   = p.ItemCount();
     const int centerX = DotLayout::kScreenW / 2;
@@ -366,21 +376,34 @@ void DotUI::renderIconPage(DotPage& p) {
     const int iconY    = DotLayout::kIconTop;
     const int cell     = DotLayout::kIconCell;
 
-    // 逐个画图标：相对位置决定 x，超出屏幕的跳过
+    // 逐个画图标：相对位置决定 x；只画“至少一半在屏内”的图标，
+    // 避免相邻图标只露一条边形成残块
     for (int i = 0; i < count; ++i) {
         const float rel = (float)i - scroll_.pos;
         const int x = centerX - iconSize / 2 + (int)(rel * (float)cell);
-        if (x < -iconSize || x > DotLayout::kScreenW) continue;
+        if (x < -iconSize / 2 || x > DotLayout::kScreenW - iconSize / 2) continue;
 
         DotItem* it = p.Item(i);
-        if (it && it->iconSrc) {
+        const uint8_t* src = (it && it->iconSrc) ? it->iconSrc
+                                                 : DotRes::kIconDefault; // 兑底默认图标
+        if (src) {
             u8g2_SetDrawColor(g2_, theme_.fg);
-            DrawIcon(it->iconSrc, x, iconY, 3);
+            // 大图标（边长超过 3 倍逻辑尺寸）缩放绘制到统一盒子里，
+            // 小图标仍按 3 倍放大——两种来源在同一页面尺寸一致
+            const int n = src[0];
+            if (n > DotLayout::kIconLogical * 3)
+                DrawIcon(src, x, iconY, 1, iconSize);
+            else
+                DrawIcon(src, x, iconY, 3);
         }
     }
 
-    // 焦点图标的名称（大字）与副标题（中文字体），居中显示
-    DotItem* cur = p.Item(FocusIndex());
+    // 焦点图标的名称（大字），居中显示；基线 = kIconTop + kIconNameY（可调）。
+    // 名称取 TargetIndex()（目标索引）而非 FocusIndex()（弹簧当前位置）：
+    // 欠阻尼时弹簧会过冲回弹，FocusIndex() 在新旧行号间反复横跳，
+    // 名称就会 A→B→A 地闪；图标用浮点位置画可以跟随回弹，
+    // 但离散文本只应跟目标，到位即稳定。
+    DotItem* cur = p.Item(TargetIndex());
     if (cur) {
         u8g2_SetDrawColor(g2_, theme_.fg);
 
@@ -388,15 +411,8 @@ void DotUI::renderIconPage(DotPage& p) {
             u8g2_SetFont(g2_, fontBig_);
             const int tw = (int)u8g2_GetUTF8Width(g2_, cur->GetText());
             u8g2_DrawUTF8(g2_, (int16_t)(centerX - tw / 2),
-                          (int16_t)(DotLayout::kIconTop + 60), cur->GetText());
-        }
-
-        const char* sub = iconSubtitle(FocusIndex());
-        if (sub && DotRes::kFontChinese) {
-            u8g2_SetFont(g2_, DotRes::kFontChinese);
-            const int sw = (int)u8g2_GetUTF8Width(g2_, sub);
-            u8g2_DrawUTF8(g2_, (int16_t)(centerX - sw / 2),
-                          (int16_t)(DotLayout::kIconTop + 82), sub);
+                          (int16_t)(DotLayout::kIconTop + DotLayout::kIconNameY),
+                          cur->GetText());
         }
 
         if (fontList_) u8g2_SetFont(g2_, fontList_);   // 恢复列表字体
@@ -571,27 +587,32 @@ void DotUI::drawRow(DotItem &it, float rowF, bool selected, float slide)
         break;
     }
 
-    // 勾选框：9px 方块 + 3px 间距 + 文本
+    // 勾选框：左侧标签截断避让，右侧右对齐方块（与开关/数值布局一致）
     case ItemType::ITEM_CHECKBOX:
     {
         const int bs = 9;
-        FrameBox(x, y + 4, bs, bs);
+        const int bx = DotLayout::kWidgetRight - bs;
+        FrameBox(bx, y + (DotLayout::kRowH - bs) / 2, bs, bs);
         if (it.IsOn())
-            FillBox(x + 2, y + 6, bs - 4, bs - 4);
-        DrawTextClipped(x + bs + 3, base, it.GetText(), DotLayout::kNavX);
+            FillBox(bx + 2, y + (DotLayout::kRowH - bs) / 2 + 2, bs - 4, bs - 4);
+        DrawTextClipped(x, base, it.GetText(), bx - 4);
         break;
     }
 
-    // 数值：右侧右对齐，编辑态加圆角框
+    // 数值：右侧右对齐显示；档位名表优先（如屏幕方向显示 0/90/180/270），
+    // 其次 valueFmt 覆盖，最后回落默认格式
     case ItemType::ITEM_VALUE:
     {
-        snprintf(it.valueBuf, sizeof(it.valueBuf), DotRes::kFormatValue, it.value);
+        if (it.valueNames) {
+            const int gi = (int)(it.value + 0.5f);
+            snprintf(it.valueBuf, sizeof(it.valueBuf), "%s", it.valueNames[gi]);
+        } else {
+            snprintf(it.valueBuf, sizeof(it.valueBuf),
+                     it.valueFmt ? it.valueFmt : DotRes::kFormatValue, it.value);
+        }
         DrawTextClipped(x, base, it.GetText(),
                         DotLayout::kWidgetRight - TextWidth(it.valueBuf) - 4);
         DrawTextRight(DotLayout::kWidgetRight, base, it.valueBuf);
-        if (it.IsEditing())
-            FrameRound(x - 3, y, DotLayout::kNavX - (x - 3),
-                       DotLayout::kRowH, 3);
         break;
     }
 
@@ -713,13 +734,30 @@ void DotUI::DrawTextClipped(int x, int y, const char *s, int maxX)
     }
 }
 
-// 固件格式图标：icon[0]=边长 n，位图 MSB-first，0 位着色（1 = 透明）
-void DotUI::DrawIcon(const uint8_t* icon, int x, int y, int scale) {
+// 固件格式图标：icon[0]=边长 n（上限 64，支持大尺寸图标），
+// 位图 MSB-first，0 位着色（1 = 透明）。
+// dstSize > 0 时把图标缩放绘制到 dstSize x dstSize 的盒子里（取最近邻采样），
+// 否则按 scale 放大绘制（原行为）。
+void DotUI::DrawIcon(const uint8_t* icon, int x, int y, int scale, int dstSize) {
     if (!icon) return;
     const int n = icon[0];
-    if (n <= 0 || n > 32) return;
+    if (n <= 0 || n > 64) return;
 
     const int stride = (n + 7) >> 3;
+
+    if (dstSize > 0) {
+        // 缩放模式：目标盒 dstSize，源 n x n，最近邻采样逐像素直绘
+        for (int r = 0; r < dstSize; ++r) {
+            const int sr = (r * n) / dstSize;            // 源行
+            for (int c = 0; c < dstSize; ++c) {
+                const int sc = (c * n) / dstSize;        // 源列
+                const uint8_t b = icon[1 + sr * stride + (sc >> 3)];
+                if ((b >> (7 - (sc & 7))) & 1) continue; // 透明
+                u8g2_DrawPixel(g2_, (int16_t)(x + c), (int16_t)(y + r));
+            }
+        }
+        return;
+    }
 
     for (int r = 0; r < n; ++r)
         for (int c = 0; c < n; ++c) {
@@ -867,19 +905,18 @@ void DotUI::selectionMetrics(DotItem &it, int &x, int &w)
         content = TextWidth(it.GetText());
         break;
     case ItemType::ITEM_CHECKBOX:
-        content = 9 + 3 + TextWidth(it.GetText());
+        // 勾选框右置后选中框只包标签（与开关/数值一致）；9 = 右侧方块宽
+        content = labelClamped(9);
         break;
     case ItemType::ITEM_SWITCH:
         content = labelClamped(TextWidth(it.IsOn() ? DotRes::kTextOn
                                                    : DotRes::kTextOff));
         break;
     case ItemType::ITEM_VALUE:
-    {
-        char buf[16];
-        snprintf(buf, sizeof(buf), DotRes::kFormatValue, it.value);
-        content = labelClamped(TextWidth(buf));
+        // 数值项选中框只包住左侧标签（不包右侧数值），
+        // 与右侧数值间保留间距；编辑态也用它作为唯一指示
+        content = labelClamped(TextWidth(it.GetText()));
         break;
-    }
     case ItemType::ITEM_PROGRESS_BAR:
         content = labelClamped(DotLayout::kBarW);
         break;

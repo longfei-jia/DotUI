@@ -18,7 +18,7 @@ typedef void (*DotCallback)(DotUI* ui, void* arg);
 
 // 控件类型：决定列表项的绘制方式与按下行为
 enum class ItemType : uint8_t {
-    ITEM_CALL_PAGE     = 0,   // 进入子页面（param1 = MonoPage*，行首显示 "+"）
+    ITEM_CALL_PAGE     = 0,   // 进入子页面（param1 = DotPage*，行首显示 "+"）
     ITEM_CALL_FUNCTION = 1,   // 触发回调（行首显示 "-"）
     ITEM_TEXT          = 2,   // 纯文本行
     ITEM_SWITCH        = 3,   // 开关：右侧显示 开/关
@@ -30,7 +30,7 @@ enum class ItemType : uint8_t {
 
 // ---------------------------------------------------------------------------
 // 运行时布局参数：全部 inline 全局变量，默认按 128x128 初始化；
-// MonoUI::Begin() 会用实际显示尺寸调 init() 重算——128x128 / 144x168 共用
+// DotUI::Begin() 会用实际显示尺寸调 init() 重算——128x128 / 144x168 共用
 // 同一套渲染代码的秘密就在这里。
 // ---------------------------------------------------------------------------
 namespace DotLayout {
@@ -53,40 +53,60 @@ inline int kSelectionRadius   = 3;
 inline int kBarW = 32, kBarH = 7;
 inline int kStatusIconX = 110, kStatusIconS = 10;
 inline int kIconCell = 56, kIconLogical = 14, kIconTop = 6;
+inline int kIconNameY = 60; // 焦点图标名称基线相对 kIconTop 的距离
 
+// 按实际显示尺寸重算全部布局参数（Begin() 时调用一次）。
+// 所有参数都从 kScreenW/kScreenH 推导，换分辨率无需改渲染代码。
 inline void init(int width, int height) {
     kScreenW = width;
     kScreenH = height;
-    kRowH    = 16;
-    kPadItem = 10;
-    kPrefixX = 1;
-    kNavW       = 8;
-    kNavX       = kScreenW - kNavW;
-    kScrollBarX = kNavX + 2;
+
+    // ---- 列表行 ----
+    kRowH    = 16;              // 行高固定 16px：128 屏 8 行 / 168 屏 10 行
+    kPadItem = 10;              // 正文左起点（前缀 + 间距）
+    kPrefixX = 1;               // 前缀 +/- 的 x 起点
+
+    // ---- 右侧导航栏与滚动条 ----
+    kNavW       = 8;                        // 导航栏宽度固定
+    kNavX       = kScreenW - kNavW;         // 导航栏左边界贴屏幕右缘
+    kScrollBarX = kNavX + 2;                // 滚动条轨道在导航栏内居中
     kScrollBarW = 4;
-    kWidgetRight = kNavX - 4;
-    kMarqueeGate = kNavX;
-    kSelectionOverhang = 3;
-    kSelectionRadius   = 3;
-    kBarW = 32; kBarH = 7;
-    kStatusIconX = kNavX - 10;
+
+    // ---- 内容右边界 ----
+    kWidgetRight = kNavX - 4;   // 右侧控件（开关/数值/进度条）右对齐线
+    kMarqueeGate = kNavX;       // 文本超过导航栏左缘才触发跑马灯
+
+    // ---- 选中框 ----
+    kSelectionOverhang = 3;     // 右侧外扩量（包围感）
+    kSelectionRadius   = 3;     // 圆角半径
+
+    // ---- 行内控件 ----
+    kBarW = 32; kBarH = 7;      // 进度条尺寸
+    kStatusIconX = kNavX - 10;  // 行尾状态图标（10x10）贴导航栏左侧
     kStatusIconS = 10;
-    kIconCell    = 56;
-    kIconLogical = 14;
-    kIconTop     = (kScreenH > 128) ? 24 : 6;
+
+    // ---- 图标页 ----
+    kIconCell    = 56;                      // 图标横向间距（含留白）
+    kIconLogical = 14;                      // 图标原始边长（绘制放大 3 倍 = 42px）
+    // 图标 + 名称整体垂直居中：内容总高 = 图标 42px + 名称区约 15px，
+    // 让名称底部贴近屏幕下缘，剩余空间上下均分。
+    kIconTop     = (kScreenH - (kIconLogical * 3 + 15)) / 2;
+    if (kIconTop < 0) kIconTop = 0;
+    kIconNameY   = 57;   // 名称基线 = kIconTop + 57，即紧贴图标下方 15px 处
+
     // 168/16=10 行余 8px → 上下各留 4px；整除时留白为 0
     kListTop = (kScreenH - (kScreenH / kRowH) * kRowH) / 2;
 }
-} // namespace MonoLayout
+} // namespace DotLayout
 
 // 动画与输入时间常量
 namespace DotAnim {
 // 弹簧：x'' = ωn²·(target-x) - 2ζωn·x'
 //   ωn 越大响应越快（稳定时间≈4/(ζ·ωn)），ζ=1 临界阻尼最快无过冲
-constexpr float kSpringOmega   = 22.0f;
-constexpr float kSpringZeta    = 0.8f;
-constexpr float kSpringSnapPos = 0.001f;
-constexpr float kSpringSnapVel = 0.05f;
+constexpr float kSpringOmega   = 22.0f;   // 固有角频率 (rad/s)，22 → 约 180ms 收敛
+constexpr float kSpringZeta    = 0.8f;    // 阻尼比：<1 欠阻尼轻微回弹，1 = 临界
+constexpr float kSpringSnapPos = 0.001f;  // 判“到位”的位置误差阈值
+constexpr float kSpringSnapVel = 0.05f;   // 判“到位”的速度误差阈值
 
 constexpr uint32_t kMarqueeWaitMs = 1000;  // 跑马灯两端停留
 constexpr uint32_t kMarqueeStepMs = 50;    // 滚动一步间隔
@@ -96,7 +116,7 @@ constexpr uint32_t kLongPressMs   = 500;   // 长按阈值
 constexpr uint32_t kRepeatDelayMs = 400;   // 长按后开始连发的延迟
 constexpr uint32_t kRepeatRateMs  = 80;    // 连发间隔
 constexpr uint32_t kToastMs       = 1200;  // Toast 存活时间
-} // namespace MonoAnim
+} // namespace DotAnim
 
 // 主题：1-bit 屏只有前景/背景
 struct DotTheme {
@@ -204,7 +224,7 @@ constexpr uintptr_t dotToUptr(T v) noexcept
     }
 }
 
-// uintptr_t → 指针（与 monoToUptr 配对）
+// uintptr_t → 指针（与 DotToUptr 配对）
 template <typename T>
 inline T dotFromUptr(uintptr_t v) { return reinterpret_cast<T>(v); }
 

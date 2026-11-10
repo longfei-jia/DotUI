@@ -23,6 +23,9 @@ extern const uint8_t* const kIcons[8];
 constexpr int kIconCount = 8;
 constexpr int kIconLogicalSize = 14;
 
+// 64x64 默认图标（填充正方形）：图标项未指定 iconSrc 时的兑底
+extern const uint8_t kIconDefault[513];
+
 extern const char* const kPrefixPage;       // 子页面前缀 "+"
 extern const char* const kPrefixFunction;   // 动作项前缀 "-"
 extern const char* kTextOn;                 // 可写指针：语言切换时改指向
