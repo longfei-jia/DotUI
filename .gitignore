@@ -7,6 +7,7 @@
 /.vscode/
 /.trae/
 
+
 # 编译中间文件
 *.o
 *.obj
@@ -14,4 +15,7 @@
 
 # u8g2 上游 git 历史的本地备份，不提交
 /lib/u8g2/.git_upstream_backup/
-/doc/*
+
+# 文档目录不纳入版本管理（教程/移植指南/参考实现）
+/doc/
+
