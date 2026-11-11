@@ -1,0 +1,27 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "sim",
+            "displayName": "DotUI 本地开发（SDL 模拟器 + CLion MinGW + Ninja）",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "DOTUI_BUILD_EXAMPLE": "ON",
+                "DOTUI_WINDOWS_USE_CLION_MINGW": "ON",
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "sim",
+            "configurePreset": "sim"
+        }
+    ]
+}

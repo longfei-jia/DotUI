@@ -1,0 +1,19 @@
+{
+    "name": "DotUI",
+    "version": "0.1.0",
+    "description": "Spring-animated monochrome UI framework for u8g2: list/icon menu pages, overlays, edit mode",
+    "keywords": "ui, menu, u8g2, embedded, monochrome, animation",
+    "license": "MIT",
+    "homepage": "https://github.com/your-name/DotUI",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/your-name/DotUI.git"
+    },
+    "include_dir": "inc",
+    "src_dir": "src",
+    "dependencies": {
+        "olikraus/U8g2_Arduino": "^1.8.0"
+    },
+    "frameworks": "*",
+    "platforms": "*"
+}

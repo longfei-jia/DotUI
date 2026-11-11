@@ -1,0 +1,5 @@
+## idf_component.yml —— ESP-IDF Component Manager 依赖声明
+## 消费方将本仓库 clone 到 components/ 目录后，idf.py build 时
+## 组件管理器自动从 Registry 拉取 u8g2 官方组件（无需 SDL 补丁）
+dependencies:
+  espressif/u8g2: "^2.0.0"
