@@ -208,6 +208,8 @@ void DotUI::applyPage(DotPage *p, int item)
 {
     if (!p)
         return;
+    if (editing_)
+        ExitEdit(false);   // 导航离开时统一取消编辑（跳页/返回/回主页都经此）
     curPage_ = p->Index();
 
     const float f = (item >= 0) ? (float)item : p->savedFocus;
@@ -242,8 +244,60 @@ void DotUI::Back()
 void DotUI::Press()
 {
     DotItem *it = CurrentItem();
-    if (it)
+    if (!it)
+        return;
+    // 可编辑类型：OK 进入编辑态（上下键调值，再按 OK 提交/双击取消）
+    if (it->Editable())
+        EnterEdit();
+    else
         it->Activate(this);
+}
+
+// ============================ 编辑态（方案 A：双态分派） ============================
+// 进入编辑：快照当前值/开关态（取消时回滚），编辑位同步给渲染层做反白提示
+bool DotUI::EnterEdit()
+{
+    DotItem *it = CurrentItem();
+    if (!it || !it->Editable() || editing_)
+        return false;
+    editing_ = true;
+    editSnapValue_ = it->value;
+    editSnapOn_ = it->IsOn();
+    it->SetEditing(true);
+    return true;
+}
+
+// 退出编辑：commit=false 回滚快照并触发回调（应用层同步回显示）；
+// commit=true 保持调整后的值（调整过程中回调已实时触发过）
+void DotUI::ExitEdit(bool commit)
+{
+    DotItem *it = CurrentItem();
+    editing_ = false;
+    lastOkClick_ = 0;
+    if (!it)
+        return;
+    it->SetEditing(false);
+    if (!commit) {
+        it->SetValue(editSnapValue_);
+        it->SetOn(editSnapOn_);
+        if (it->callback)
+            it->callback(this, it->Context());
+    }
+}
+
+// 右侧控件区文本绘制：编辑态选中行反白（fg 底 + bg 字），提示"正在调节"
+void DotUI::DrawValueRight(const char *s, int y, int base, bool inverted)
+{
+    if (!inverted) {
+        DrawTextRight(DotLayout::kWidgetRight, base, s);
+        return;
+    }
+    const int w = TextWidth(s);
+    FillRound(DotLayout::kWidgetRight - w - 3, y + 2, w + 6,
+              DotLayout::kRowH - 4, 2);
+    u8g2_SetDrawColor(g2_, theme_.bg);
+    DrawTextRight(DotLayout::kWidgetRight, base, s);
+    u8g2_SetDrawColor(g2_, theme_.fg);
 }
 
 void DotUI::AdjustCurrent(int dir)
@@ -291,11 +345,14 @@ void DotUI::switchItem(DotItem &it)
         it.callback(this, it.Context());
 }
 
-// ============================ 3. 输入分派 ============================
+// ==================== 3. 输入分派（方案 A：双态分派） ====================
+// 导航态：上下移焦点，OK 执行/进入编辑，双击 OK 返回上一级，长按 OK 回主页；
+// 编辑态：上下调值（实时回调），OK 提交退出，双击 OK 取消并返回上一级。
+// 3 键硬件（上/下/确认）完整可用；4 键时左右键在两态下都直接调值
 void DotUI::handleEvent(DotInput::Event ev, DotInput::Key k)
 {
     DotPage *page = CurrentPage();
-    const bool iconPage = page && page->GetMode() == DotPage::ICON;
+    const bool iconPage = !editing_ && page && page->GetMode() == DotPage::ICON;
 
     if (ev == DotInput::EV_CLICK || ev == DotInput::EV_REPEAT)
     {
@@ -304,10 +361,10 @@ void DotUI::handleEvent(DotInput::Event ev, DotInput::Key k)
         switch (k)
         {
         case DotInput::KEY_UP:
-            MoveFocus(-1);
+            editing_ ? AdjustCurrent(+1) : MoveFocus(-1);
             break;
         case DotInput::KEY_DOWN:
-            MoveFocus(+1);
+            editing_ ? AdjustCurrent(-1) : MoveFocus(+1);
             break;
         case DotInput::KEY_LEFT:
             if (iconPage)
@@ -322,8 +379,24 @@ void DotUI::handleEvent(DotInput::Event ev, DotInput::Key k)
                 AdjustCurrent(+1);
             break;
         case DotInput::KEY_OK:
-            if (click)
-                Press();
+            if (!click)
+                break;
+            // 双击：事后升级判定（第二次 CLICK 距上次 <250ms）。
+            // 导航态单击已先执行过，双击时再 Back 只是抵消，无副作用
+            if (now_ - lastOkClick_ < kDblClickMs) {
+                if (editing_)
+                    ExitEdit(false);      // 取消编辑（回滚快照）
+                lastOkClick_ = 0;
+                Back();                   // 返回上一级
+            }
+            else if (editing_) {
+                ExitEdit(true);           // 提交并退出编辑
+                lastOkClick_ = now_;
+            }
+            else {
+                Press();                  // 执行 / 进入编辑
+                lastOkClick_ = now_;
+            }
             break;
         case DotInput::KEY_BACK:
             if (click)
@@ -335,9 +408,19 @@ void DotUI::handleEvent(DotInput::Event ev, DotInput::Key k)
         return;
     }
 
-    // 长按 OK 等效返回
-    if (ev == DotInput::EV_LONG && k == DotInput::KEY_OK)
-        Back();
+    // 长按：OK 回主页；上下键跳列表首/尾（仅导航态）
+    if (ev == DotInput::EV_LONG)
+    {
+        if (k == DotInput::KEY_OK) {
+            HomeScreen(nullptr);
+        }
+        else if (!editing_ && page) {
+            if (k == DotInput::KEY_UP)
+                SetFocus(0);
+            else if (k == DotInput::KEY_DOWN)
+                SetFocus(page->ItemCount() - 1);
+        }
+    }
 }
 
 // ============================ 5. 列表页渲染（最小版） ============================
@@ -577,24 +660,32 @@ void DotUI::drawRow(DotItem &it, float rowF, bool selected, float slide)
         DrawTextClipped(x, base, it.GetText(), DotLayout::kNavX);
         break;
 
-    // 开关：左侧标签截断避让，右侧右对齐 开/关
+    // 开关：左侧标签截断避让，右侧右对齐 开/关（编辑态选中行反白）
     case ItemType::ITEM_SWITCH:
     {
         const char *state = it.IsOn() ? DotRes::kTextOn : DotRes::kTextOff;
         DrawTextClipped(x, base, it.GetText(),
                         DotLayout::kWidgetRight - TextWidth(state) - 4);
-        DrawTextRight(DotLayout::kWidgetRight, base, state);
+        DrawValueRight(state, y, base, selected && editing_);
         break;
     }
 
-    // 勾选框：左侧标签截断避让，右侧右对齐方块（与开关/数值布局一致）
+    // 勾选框：左侧标签截断避让，右侧右对齐方块（与开关/数值布局一致）；
+    // 编辑态选中行时整块反白（bg 色画框/勾，形成黑白反转）
     case ItemType::ITEM_CHECKBOX:
     {
         const int bs = 9;
         const int bx = DotLayout::kWidgetRight - bs;
+        const bool inv = selected && editing_;
+        if (inv) {
+            FillBox(bx - 2, y + (DotLayout::kRowH - bs) / 2 - 2, bs + 4, bs + 4);
+            u8g2_SetDrawColor(g2_, theme_.bg);
+        }
         FrameBox(bx, y + (DotLayout::kRowH - bs) / 2, bs, bs);
         if (it.IsOn())
             FillBox(bx + 2, y + (DotLayout::kRowH - bs) / 2 + 2, bs - 4, bs - 4);
+        if (inv)
+            u8g2_SetDrawColor(g2_, theme_.fg);
         DrawTextClipped(x, base, it.GetText(), bx - 4);
         break;
     }
@@ -612,7 +703,7 @@ void DotUI::drawRow(DotItem &it, float rowF, bool selected, float slide)
         }
         DrawTextClipped(x, base, it.GetText(),
                         DotLayout::kWidgetRight - TextWidth(it.valueBuf) - 4);
-        DrawTextRight(DotLayout::kWidgetRight, base, it.valueBuf);
+        DrawValueRight(it.valueBuf, y, base, selected && editing_);
         break;
     }
 

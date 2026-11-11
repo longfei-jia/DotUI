@@ -113,6 +113,7 @@ DotItem* DotPage::AddSelector(const char* description,
     it->valueNames = sel.names;   // 右侧档位显示内容（应用层可换表）
     it->SetValue((float)(sel.initial >= 0 && sel.initial < sel.count
                              ? sel.initial : 0));
-    it->SetEditing(true);         // 常驻编辑态：左右键直接切档
     return it;
+    // 编辑不再常驻：导航态 OK 进入编辑态后上下键切档（方案 A 双态分派），
+    // 切档过程中 sel.callback 实时触发，OK 提交退出、双击取消并返回
 }

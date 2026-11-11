@@ -77,6 +77,15 @@ class DotItem{
     DotPage* TargetPage() const;                            // 跳转目标页
     void*     Context() const { return dotFromUptr<void*>(param2); }
 
+    // 可编辑类型：导航态按 OK 进入编辑态（上下键/编码器调节，再按 OK 提交）。
+    // 全部可编辑控件共用同一套编辑流程，类型差异收敛在 adjustItem 一个 switch 里
+    bool Editable() const {
+        return type == ItemType::ITEM_VALUE ||
+               type == ItemType::ITEM_PROGRESS_BAR ||
+               type == ItemType::ITEM_SWITCH ||
+               type == ItemType::ITEM_CHECKBOX;
+    }
+
     bool Activate(DotUI* ui);   // 按下处理（实现在 dot_item.cpp）
 };
 

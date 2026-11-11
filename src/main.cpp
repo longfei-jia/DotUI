@@ -36,16 +36,20 @@ DotUI     g_ui(&g_u8g2, &g_input);
 // SDL 只给按下事件，这里按住 60ms 再释放，让 DotInput 产生一次 EV_CLICK。
 uint32_t g_pressUntil[DotInput::KEY_COUNT] = {0};
 
-// SDL 键码 → DotInput 键
+// SDL 键码 → DotInput 键。
+// 鼠标已在 SDL 后端（u8x8_sdl_key.c）翻译为相同键码：
+// 滚轮上/下 → 273/274，左键 → 's'（确认），右键 → 'b'（返回），
+// 此处与键盘共用同一翻译分支。
+// 注：左键双击 250ms 内 → 双态编辑模型自动判为"返回上一级"
 void queueKey(int key, uint32_t now) {
     DotInput::Key k = DotInput::KEY_NONE;
     switch (key) {
-    case 273: k = DotInput::KEY_UP;    break;   // ↑
-    case 274: k = DotInput::KEY_DOWN;  break;   // ↓
+    case 273: k = DotInput::KEY_UP;    break;   // ↑（滚轮上滚同）
+    case 274: k = DotInput::KEY_DOWN;  break;   // ↓（滚轮下滚同）
     case 276: k = DotInput::KEY_LEFT;  break;   // ←
     case 275: k = DotInput::KEY_RIGHT; break;   // →
-    case 's': case ' ': k = DotInput::KEY_OK;   break;   // 确认
-    case 'b': case 'q': k = DotInput::KEY_BACK; break;   // 返回（q 不退出）
+    case 's': case ' ': k = DotInput::KEY_OK;   break;   // 确认（鼠标左键同）
+    case 'b': case 'q': k = DotInput::KEY_BACK; break;   // 返回（鼠标右键同；q 不退出）
     default: return;
     }
     g_pressUntil[k] = now + 60;

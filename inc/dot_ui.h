@@ -73,6 +73,10 @@ public:
     // 全局阻尼：同时设置 4 个弹簧的阻尼比（0.5 欠/1.0 临界/1.6 过）
     void SetSpringZeta(float zeta);
 
+    // ---- 编辑态（方案 A 双态分派：导航态/编辑态键位重映射）----
+    // 导航态：上下移焦点，OK 执行/进入编辑；编辑态：上下调值，OK 提交退出
+    bool IsEditing() const { return editing_; }
+
     // ---- 文本工具（自动绑定列表字体，UTF-8 安全）----
     int  TextWidth(const char* s);
     int  FontAscent();
@@ -109,6 +113,10 @@ private:
     void handleEvent(DotInput::Event ev, DotInput::Key k);
     void switchItem(DotItem& it);        // STEP 9
     void adjustItem(DotItem& it, int dir); // STEP 9
+    bool EnterEdit();                    // 进入编辑态（快照当前值供取消回滚）
+    void ExitEdit(bool commit);          // 退出编辑：true=提交 false=回滚快照
+    void DrawValueRight(const char* s, int y, int base, bool inverted);
+                                         // 右侧控件文本：编辑态选中行反白
 
     void applyPage(DotPage* p, int item);
 
@@ -133,6 +141,13 @@ private:
 
     DotWidget* overlay_[kMaxOverlays] = {nullptr};   // ★ STEP 12
     int         overlayDepth_ = 0;
+
+    // ---- 编辑态状态（方案 A）----
+    bool     editing_ = false;        // 全局编辑态：编辑时上下键重映射为调值
+    float    editSnapValue_ = 0.0f;   // 进入编辑时的值快照（取消时回滚）
+    bool     editSnapOn_ = false;     // 进入编辑时的开关态快照
+    uint32_t lastOkClick_ = 0;        // 上次 OK 单击时刻（双击事后升级判定）
+    static constexpr uint32_t kDblClickMs = 250;   // 双击判定窗口（ms）
 
     static DotUI*  s_inst_;
     static MillisFn s_millis_;

@@ -57,6 +57,16 @@ int u8g_sdl_get_key(void)
             
             default: return 0;
           }
+        case SDL_MOUSEWHEEL:
+          /* 鼠标滚轮：上滚=273(↑)，下滚=274(↓) */
+          if ( event.wheel.y > 0 ) return 273;
+          if ( event.wheel.y < 0 ) return 274;
+          return 0;
+        case SDL_MOUSEBUTTONDOWN:
+          /* 鼠标左键='s'(确认)，右键='b'(返回)；中键及其余忽略 */
+          if ( event.button.button == SDL_BUTTON_LEFT )  return 's';
+          if ( event.button.button == SDL_BUTTON_RIGHT ) return 'b';
+          return 0;
     }
   }
 #endif 

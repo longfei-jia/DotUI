@@ -24,15 +24,9 @@ bool DotItem::Activate(DotUI* ui) {
         if (callback) callback(ui, Context());
         return true;
 
-    case ItemType::ITEM_SWITCH:
-    case ItemType::ITEM_CHECKBOX:
-        Toggle();
-        if (callback) callback(ui, Context());
-        return true;
-
-    case ItemType::ITEM_VALUE:
-        SetEditing(!IsEditing());   // OK 进入/退出编辑
-        return true;
+    // 可编辑类型（VALUE/SWITCH/CHECKBOX/PROGRESS）不在这里处理：
+    // DotUI::Press 统一拦截进入编辑态（方案 A 双态分派），
+    // 上下键调值、OK 提交/双击取消全部由框架编辑态接管
 
     case ItemType::ITEM_PROGRESS_BAR:
         return true;                // 按下无动作（左右键直接调值）
