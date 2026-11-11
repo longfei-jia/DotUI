@@ -4,10 +4,10 @@
     "description": "Spring-animated monochrome UI framework for u8g2: list/icon menu pages, overlays, edit mode",
     "keywords": "ui, menu, u8g2, embedded, monochrome, animation",
     "license": "MIT",
-    "homepage": "https://github.com/your-name/DotUI",
+    "homepage": "https://gitee.com/longfei-jia/dot-ui",
     "repository": {
         "type": "git",
-        "url": "https://github.com/your-name/DotUI.git"
+        "url": "https://gitee.com/longfei-jia/dot-ui.git"
     },
     "include_dir": "inc",
     "src_dir": "src",
