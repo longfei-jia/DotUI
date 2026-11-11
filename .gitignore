@@ -14,4 +14,4 @@
 
 # u8g2 上游 git 历史的本地备份，不提交
 /lib/u8g2/.git_upstream_backup/
-/doc
+/doc/*
