@@ -1,9 +1,9 @@
 // Dot_widget.h —— 覆盖层控件（MsgBox / Toast / ProgressBar）
-#ifndef Dot_WIDGET_H
-#define Dot_WIDGET_H
+#ifndef DOT_WIDGET_H
+#define DOT_WIDGET_H
 
-#include "Dot_defs.h"
-#include "Dot_ui.h"
+#include "dot_defs.h"
+#include "dot_ui.h"
 #include "resources.h"
 #include <stdio.h>
 

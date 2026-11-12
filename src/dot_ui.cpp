@@ -351,7 +351,10 @@ void DotUI::adjustItem(DotItem &it, int dir)
         break;
     case ItemType::ITEM_SWITCH:
     case ItemType::ITEM_CHECKBOX:
-        it.SetOn(dir > 0);
+        /* 二值项循环切换：UP/DOWN 均取反（开↔关循环），
+         * 与数值项的 wrap 行为对齐；原 SetOn(dir>0) 是绝对赋值，
+         * 关态按 DOWN 恒为关，无法循环 */
+        it.Toggle();
         if (it.callback)
             it.callback(this, it.Context());
         break;
