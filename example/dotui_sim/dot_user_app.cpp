@@ -1,9 +1,9 @@
 // dot_user_app.cpp —— 应用层：随机测试菜单 + 中英文切换
 //
-// 实现 DotUI 的三个应用钩子：
-//   InitLayout —— 注册页面与列表项（本例随机生成，方便压力测试）
-//   HomeScreen —— 返回主页
-//   SaveConfig —— 保存配置（此处只弹 Toast）
+// 实现 DotUI 的三个应用回调，并通过 install() 注册：
+//   initLayout —— 注册页面与列表项（本例随机生成，方便压力测试）
+//   homeScreen —— 返回主页
+//   saveConfig —— 保存配置（此处只弹 Toast）
 //
 // 多语言方案：所有菜单文本在创建时通过 reg() 登记中英文对，
 // 切换语言时 applyLanguage() 统一改写 item 的文本指针。
@@ -287,14 +287,15 @@ void addIconItems(DotPage* iconPage,
 } // namespace
 
 // ===========================================================================
-// 应用钩子
+// 应用回调（namespace dotui_app：install() 供 main.cpp 以限定名引用）
 // ===========================================================================
+namespace dotui_app {
 
 // 注册全部页面。主页为图标模式（默认显示），下设三个功能子页：
 //   设置（深色/语言/保存）→ UI 基础功能；
 //   控件（全部 8 种 ItemType 一网打尽）；
 //   测试（16 个测试项，测分页滚动）。
-void DotUI::InitLayout() {
+static void initLayout(DotUI& ui) {
     const unsigned seed = (unsigned)time(nullptr);
     srand(seed);
     printf("[DotUI] random menu seed = %u\n", seed);
@@ -376,15 +377,22 @@ void DotUI::InitLayout() {
     // ---- 测试页：Test 1..16，超过 8 行可视区，逼出分页滚动 ----
     addTestItems(tests);
 
-    applyLanguage(this);
+    applyLanguage(&ui);
 }
 
-void DotUI::HomeScreen(void* arg) {
-    (void)arg;
-    GotoPage(0, 0);
+static void homeScreen(DotUI& ui) {
+    ui.GotoPage(0, 0);
 }
 
-void DotUI::SaveConfig(void* arg) {
-    (void)arg;
-    DotWidget::Toast(*this, tr("Saved", "已保存"));
+static void saveConfig(DotUI& ui) {
+    DotWidget::Toast(ui, tr("Saved", "已保存"));
 }
+
+// 安装应用回调：消费方在 ui.Begin() 前调用一次即可
+void install(DotUI& ui) {
+    ui.SetLayoutHandler(initLayout);
+    ui.SetHomeHandler(homeScreen);
+    ui.SetSaveHandler(saveConfig);
+}
+
+} // namespace dotui_app

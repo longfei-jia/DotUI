@@ -28,9 +28,16 @@ public:
     void Tick(uint32_t now);  // 消费输入事件（每帧调用）
     void Run();         // MCU 一体式主循环（PC 上不用）
 
-    // ---- 应用层钩子：由应用文件实现 ----
-    void InitLayout();
-    void HomeScreen(void* arg = nullptr);
+    // ---- 应用层回调：由消费方注册，库内自带默认行为，拉取即嵌入 ----
+    // Layout：注册页面与列表项，消费方必须提供，否则界面为空
+    // Home  ：BACK 退到根 / 长按 OK 回主页，默认 GotoPage(0,0)
+    // Save  ：应用自定义保存逻辑，默认空操作；菜单项回调 ui.SaveConfig() 转发至此
+    typedef void (*LayoutFn)(DotUI& ui);
+    typedef void (*HomeFn)(DotUI& ui);
+    typedef void (*SaveFn)(DotUI& ui);
+    void SetLayoutHandler(LayoutFn fn);
+    void SetHomeHandler(HomeFn fn);
+    void SetSaveHandler(SaveFn fn);
     void SaveConfig(void* arg = nullptr);
 
     // ---- 页面导航 ----
@@ -151,6 +158,10 @@ private:
 
     static DotUI*  s_inst_;
     static MillisFn s_millis_;
+
+    LayoutFn layoutFn_ = nullptr;   // 布局注册回调
+    HomeFn   homeFn_   = nullptr;   // 回主页回调
+    SaveFn   saveFn_   = nullptr;   // 保存配置回调
 };
 
 #endif

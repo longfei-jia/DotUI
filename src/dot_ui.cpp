@@ -1,6 +1,7 @@
 // dot_ui.cpp —— DotUI 核心实现
 #include "dot_ui.h"
 #include "resources.h"
+#include "dot_theme.h"
 #include <stdio.h>
 #include <string.h>
 #include "dot_widget.h"
@@ -8,6 +9,26 @@
 DotUI *DotUI::s_inst_ = nullptr;
 DotUI::MillisFn DotUI::s_millis_ = nullptr;
 constexpr int DotUI::kMaxOverlays;
+
+// ---- 应用层回调注册：库内自带默认行为，消费方零符号依赖 ----
+void DotUI::SetLayoutHandler(LayoutFn fn) { layoutFn_ = fn; }
+void DotUI::SetHomeHandler(HomeFn fn)     { homeFn_   = fn; }
+void DotUI::SetSaveHandler(SaveFn fn)     { saveFn_   = fn; }
+
+// 保存配置入口：菜单项回调可直接调 ui.SaveConfig()，转发到注册的回调
+void DotUI::SaveConfig(void* arg)
+{
+    (void)arg;
+    if (saveFn_)
+        saveFn_(*this);
+}
+
+// 深色模式平台钩子：库内提供弱默认实现（空操作，纯软件 UI 无反色后端），
+// 消费方在任意编译单元定义同名强符号即可覆盖，无需改动库源码
+#if defined(__GNUC__)
+__attribute__((weak))
+#endif
+void dot_set_dark_mode(bool dark) { (void)dark; }
 
 DotUI::DotUI(u8g2_t *g2, DotInput *input) : g2_(g2), in_(input) {}
 
@@ -64,7 +85,8 @@ void DotUI::Begin()
     }
 
     DotPage::ResetPages();
-    InitLayout(); // 应用层注册页面
+    if (layoutFn_)
+        layoutFn_(*this);   // 应用层注册页面
 
     if (DotPage::PageCount() > 0)
         applyPage(DotPage::GetPage(0), 0);
@@ -237,8 +259,10 @@ void DotUI::Back()
         return;
     if (p->backPage >= 0)
         GotoPage(p->backPage, -1);
+    else if (homeFn_)
+        homeFn_(*this);
     else
-        HomeScreen(nullptr);
+        GotoPage(0, 0);   // 默认回主页（页面池第 0 页）
 }
 
 void DotUI::Press()
@@ -412,7 +436,10 @@ void DotUI::handleEvent(DotInput::Event ev, DotInput::Key k)
     if (ev == DotInput::EV_LONG)
     {
         if (k == DotInput::KEY_OK) {
-            HomeScreen(nullptr);
+            if (homeFn_)
+                homeFn_(*this);
+            else
+                GotoPage(0, 0);
         }
         else if (!editing_ && page) {
             if (k == DotInput::KEY_UP)

@@ -28,6 +28,9 @@ extern "C" int  u8g_sdl_get_key(void);     // SDL 事件泵 + 按键轮询
 extern "C" void u8g_sdl_set_inverse(uint8_t dark);   // 显示后端反色接口
 extern "C" uint8_t u8g_sdl_get_inverse(void);
 
+// 应用回调安装函数：dot_user_app.cpp 提供（布局/主页/保存三个回调）
+namespace dotui_app { void install(DotUI& ui); }
+
 u8g2_t    g_u8g2;
 DotInput  g_input;
 DotUI     g_ui(&g_u8g2, &g_input);
@@ -93,7 +96,8 @@ int main(int argc, char *argv[]) {
     DotUI::SetInstance(&g_ui);
     DotUI::SetMillisSource([]{ return SDL_GetTicks(); });
     g_ui.SetFonts(DotRes::kFontSmall, DotRes::kFontBig);
-    g_ui.Begin();          // InitLayout 由 dot_user_app.cpp 提供
+    dotui_app::install(g_ui);   // 注册应用回调（必须在 Begin 前）
+    g_ui.Begin();
 
     printf("[DotUI] display = %dx%d, rows = %d\n",
            DotLayout::kScreenW, DotLayout::kScreenH,
